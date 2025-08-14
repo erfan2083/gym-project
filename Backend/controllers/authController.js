@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-exports.signup = async (req, res) => {
+export const signup = async (req, res) => {
   const { email, password, name, role } = req.body;
 
   try {
@@ -28,7 +28,7 @@ exports.signup = async (req, res) => {
   }
 };
 
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
