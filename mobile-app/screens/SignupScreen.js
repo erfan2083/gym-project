@@ -8,6 +8,7 @@ export default function SignupScreen({ navigation }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role , setRole] = useState('');
 
   const handleSignup = async () => {
     try {
@@ -25,6 +26,7 @@ export default function SignupScreen({ navigation }) {
       <CustomInput placeholder="Full Name" value={fullName} onChangeText={setFullName} />
       <CustomInput placeholder="Email" value={email} onChangeText={setEmail} />
       <CustomInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
+      <CustomInput placeholder="Role" value={role} onChangeText={setRole} secureTextEntry />
       <CustomButton title="Sign Up" onPress={handleSignup} />
       <Text style={styles.link} onPress={() => navigation.navigate('Login')}>
         Already have an account? Login
