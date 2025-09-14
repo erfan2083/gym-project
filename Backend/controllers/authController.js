@@ -16,7 +16,7 @@ export const signup = async (req, res) => {
       [email, hashedPassword, name, role]
     );
 
-    res.status(201).json({ message: 'ثبت‌نام با موفقیت انجام شد.' });
+    res.status(201).json({ message: 'ثبت‌ نام با موفقیت انجام شد.' });
 
   } catch (err) {
     console.error(err);
@@ -31,41 +31,37 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
-  try {
-    const userQuery = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
-    );
-
-    if (userQuery.rows.length === 0) {
-      return res.status(401).json({ error: 'کاربر یافت نشد.' });
+    if (!email || !password) {
+        return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const user = userQuery.rows[0];
+    db.execute('CALL LoginCustomer(?, ?)', [email, password], async (err, result) => {
+        if (err) {
+            console.error('Error logging in:', err);
+            return res.status(500).json({ message: 'Error during login', error: err });
+        }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'رمز عبور اشتباه است.' });
-    }
+        const customer = result[0][0]; 
+        const isMatch = await bcrypt.compare(password, customer.password);
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+        const token = jwt.sign(
+          { id: user.id, role: user.role },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
 
-    res.json({
-      message: 'ورود موفقیت‌آمیز',
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role
-      }
+        if (customer) {
+            res.json({
+              message: 'ورود موفقیت‌آمیز',
+              token,
+              user: {
+                id: user.id,
+                name: user.name,
+                role: user.role
+              }
+            });
+        } else {
+            res.status(401).json({ message: 'Invalid email or password' });
+        }
     });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'خطا در ورود.' });
-  }
 };
