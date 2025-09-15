@@ -14,7 +14,8 @@ export const signup = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `CALL sign_up($1, $2, $3, $4);`,
+      `INSERT INTO "User" (email, password, name, role)
+        VALUES ($1, $2, $3, $4);`,
       [email, hashedPassword, name, role]
     );
 
@@ -37,7 +38,7 @@ export const login = async (req, res) => {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    db.execute('CALL LoginCustomer(?, ?)', [email, password], async (err, result) => {
+    pool.execute('CALL LoginCustomer(?, ?)', [email, password], async (err, result) => {
         if (err) {
             console.error('Error logging in:', err);
             return res.status(500).json({ message: 'Error during login', error: err });
