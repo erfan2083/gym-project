@@ -7,12 +7,14 @@ dotenv.config();
 
 export const signup = async (req, res) => {
   const { email, password, name, role } = req.body;
+  console.log(email);
+  console.log(name);
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `CALL signup_user($1, $2, $3, $4);`,
+      `CALL sign_up($1, $2, $3, $4);`,
       [email, hashedPassword, name, role]
     );
 
