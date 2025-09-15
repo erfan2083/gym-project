@@ -14,8 +14,7 @@ export const signup = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO "User" (email, password, name, role)
-        VALUES ($1, $2, $3, $4);`,
+      `CALL "gym-project".sign_up($1, $2, $3, $4);`,
       [email, hashedPassword, name, role]
     );
 
