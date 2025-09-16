@@ -35,22 +35,16 @@ export const login = async (req, res) => {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const result = await pool.query('CALL "gym-project".login_user($1, $2, o_id => NULL, o_email => NULL, o_password_hash => NULL, o_full_name => NULL, o_role => NULL);', [email, password]);
+    const result = await pool.query('CALL "gym-project".login_user($1, o_id => NULL, o_email => NULL, o_password_hash => NULL, o_full_name => NULL, o_role => NULL);', [email]);
 
-    console.log(result);
+    
 
-    const customer = result.rows[0]; 
-    const isMatch = await bcrypt.compare(password, customer.password_hash);
-
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const user = result.rows[0]; 
+    const isMatch = await bcrypt.compare(password, user.o_password_hash);
 
     if (isMatch) {
         const token = jwt.sign(
-          { id: user.id, role: user.role },
+          { id: user.o_id, role: user.o_role },
           process.env.JWT_SECRET,
           { expiresIn: '7d' }
         );
@@ -59,9 +53,9 @@ export const login = async (req, res) => {
           message: 'ورود موفقیت‌آمیز',
           token,
           user: {
-            id: user.id,
-            name: user.name,
-            role: user.role
+            id: user.o_id,
+            name: user.o_full_name,
+            role: user.o_role
           }
         });
     } else {
