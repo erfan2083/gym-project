@@ -7,8 +7,6 @@ dotenv.config();
 
 export const signup = async (req, res) => {
   const { email, password, name, role } = req.body;
-  console.log(email);
-  console.log(name);
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
