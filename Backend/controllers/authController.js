@@ -35,33 +35,36 @@ export const login = async (req, res) => {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    pool.execute('CALL LoginCustomer(?, ?)', [email, password], async (err, result) => {
-        if (err) {
-            console.error('Error logging in:', err);
-            return res.status(500).json({ message: 'Error during login', error: err });
-        }
+    const result = await pool.query('CALL "gym-project".login_user($1, $2, o_id => NULL, o_email => NULL, o_password_hash => NULL, o_full_name => NULL, o_role => NULL);', [email, password]);
 
-        const customer = result[0][0]; 
-        const isMatch = await bcrypt.compare(password, customer.password);
+    console.log(result);
 
+    const customer = result.rows[0]; 
+    const isMatch = await bcrypt.compare(password, customer.password_hash);
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    if (isMatch) {
         const token = jwt.sign(
           { id: user.id, role: user.role },
           process.env.JWT_SECRET,
           { expiresIn: '7d' }
         );
 
-        if (customer) {
-            res.json({
-              message: 'ورود موفقیت‌آمیز',
-              token,
-              user: {
-                id: user.id,
-                name: user.name,
-                role: user.role
-              }
-            });
-        } else {
-            res.status(401).json({ message: 'Invalid email or password' });
-        }
-    });
+        res.json({
+          message: 'ورود موفقیت‌آمیز',
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            role: user.role
+          }
+        });
+    } else {
+        res.status(401).json({ message: 'Invalid email or password' });
+    }
 };
