@@ -12,7 +12,7 @@ export default function SignupScreen({ navigation }) {
 
   const handleSignup = async () => {
     try {
-      await signup(fullName, email, password);
+      await signup(fullName, email, password, role);
       Alert.alert('Success', 'Account created successfully!');
       navigation.navigate('Login');
     } catch (error) {
