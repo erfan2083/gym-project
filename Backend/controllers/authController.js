@@ -8,6 +8,10 @@ dotenv.config();
 export const signup = async (req, res) => {
   const { email, password, name, role } = req.body;
 
+  if (!email || !password || !name || !role) {
+        return res.status(400).json({ message: 'All fields are required' });
+    }
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
