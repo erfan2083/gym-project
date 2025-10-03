@@ -27,7 +27,7 @@ export const signup = async (req, res) => {
     if (err.message.includes('duplicate')) {
       res.status(400).json({ error: 'ایمیل قبلاً استفاده شده است.' });
     } else {
-      res.status(500).json({ error: 'خطا در ثبت‌نام.' });
+      res.status(500).json({ error: 'خطا در ثبت‌ نام.' });
     }
   }
 };
