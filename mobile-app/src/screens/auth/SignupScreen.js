@@ -11,8 +11,8 @@ import { moderateScale } from "react-native-size-matters";
 import { AntDesign } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Shadow } from "react-native-shadow-2";
-import CustomInput from "../components/CustomInput";
-import Google from "../components/Google";
+import CustomInput from "../../components/ui/CustomInput";
+import Google from "../../components/Google";
 
 export default function SignupScreen() {
   const [role, setRole] = useState("user");
