@@ -43,9 +43,16 @@ export default function OtpScreen({ route, navigation }) {
     setCode(normalizeDigits(t).slice(0, length));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isComplete) return;
-    console.log("OTP:", code, "for phone:", phone);
+    try {
+      const { signup_token } = await signupVerify(otp_id, code);
+      setMsg('Verified');
+    } catch (e) {
+      setMsg(e.response?.data?.message || e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
