@@ -1,5 +1,8 @@
 // services/sms.js
 import axios from 'axios';
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const API_KEY = process.env.KAVENEGAR_API_KEY;
 const TEMPLATE = process.env.KAVENEGAR_TEMPLATE;
