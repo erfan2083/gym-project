@@ -15,7 +15,7 @@ import { styles1 } from "../../theme/LogoStyle";
 import PhoneField from "../../components/PhoneField";
 import PhoneSubmit from "../../components/PhoneSubmit";
 // توجه: مسیر import زیر را دقیقاً طبق پروژه خودت نگه دار
-import { validatePhone, normalizeDigits } from "../../components/phone";
+import { validatePhone, normalizeDigits } from "../../../utils/phone";
 
 export default function PhoneNumberScreen({ navigation }) {
   const [value, setValue] = useState("");
