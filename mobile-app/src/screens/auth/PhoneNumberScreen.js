@@ -24,10 +24,20 @@ export default function PhoneNumberScreen({ navigation }) {
   const { valid, errors } = useMemo(() => validatePhone(value), [value]);
   const showError = touched && errors.length > 0;
 
-  const onSubmit = () => {
+
+  const onSubmit = async () => {
     if (!valid) return;
     const phone = normalizeDigits(value);
-    navigation.navigate("Otp", { phone }); // ← رفتن به OTP با پارامتر
+
+    try{
+      const { otp_id } = await signupStart(phone);
+      navigation.navigate("Otp", { otp_id }); // ← رفتن به OTP با پارامتر
+    } catch (e) {
+      setMsg(e.response?.data?.message || e.message);
+    } finally {
+      setLoading(false);
+    }
+    
   };
 
   return (
