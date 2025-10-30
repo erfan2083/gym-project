@@ -1,21 +1,16 @@
 // src/screens/auth/OtpScreen.js
 import React, { useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  Pressable,
+  View, Text, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Pressable,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
+import { signupVerify } from "../../../api/auth";   // ← اضافه شد
 
-const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+const FA = ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
 const toFa = (s) => String(s || "").replace(/\d/g, (d) => FA[+d]);
 const normalizeDigits = (t) =>
   String(t || "")
@@ -27,6 +22,8 @@ export default function OtpScreen({ route, navigation }) {
   const otp_id = route?.params?.otp_id || "";
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);     // ← اضافه شد
+  const [msg, setMsg] = useState("");                // ← اضافه شد
   const inputRef = useRef(null);
   const length = 5;
 
@@ -44,12 +41,18 @@ export default function OtpScreen({ route, navigation }) {
   };
 
   const handleSubmit = async () => {
-    if (!isComplete) return;
+    if (!isComplete || loading) return;
+    setMsg("");
+    setLoading(true);
     try {
-      const { signup_token } = await signupVerify(otp_id, code);
-      setMsg('Verified');
+      // اطمینان: دوباره نرمال کنیم
+      const fixed = normalizeDigits(code);
+      const { signup_token } = await signupVerify(otp_id, fixed);
+      setMsg("کد تایید شد ✅");
+      // اینجا می‌تونی هدایت به مرحله بعدی رو انجام بدی:
+      navigation.navigate("SignupComplete", { signup_token });
     } catch (e) {
-      setMsg(e.response?.data?.message || e.message);
+      setMsg(e?.response?.data?.message || e.message || "خطا در تایید کد");
     } finally {
       setLoading(false);
     }
@@ -67,24 +70,21 @@ export default function OtpScreen({ route, navigation }) {
             logoWrap={styles1.logoWrap1}
             logo={styles1.logo1}
             text={styles1.text1}
-          />{" "}
+          />
+          {/* ⚠️ اون {" "} حذف شد */}
           <Text style={styles.label}>کد تایید:</Text>
-          <Pressable
-            style={styles.row}
-            onPress={() => inputRef.current?.focus()}
-          >
+
+          <Pressable style={styles.row} onPress={() => inputRef.current?.focus()}>
             {cells.map((d, i) => {
               const active = focused && i === activeIndex;
               return (
-                <View
-                  key={i}
-                  style={[styles.cell, active && styles.cellActive]}
-                >
+                <View key={i} style={[styles.cell, active && styles.cellActive]}>
                   <Text style={styles.digit}>{d ? toFa(d) : ""}</Text>
                 </View>
               );
             })}
           </Pressable>
+
           <CustomInput
             ref={inputRef}
             value={code}
@@ -99,14 +99,16 @@ export default function OtpScreen({ route, navigation }) {
             autoFocus
             placeholder=""
           />
+
+          {!!msg && <Text style={styles.msg}>{msg}</Text>}
         </View>
 
         <PrimaryButton
-          title="تایید"
-          disabled={!isComplete}
+          title={loading ? "در حال تایید..." : "تایید"}
+          disabled={!isComplete || loading}
           onPress={handleSubmit}
           style={styles.cta}
-          textColor={isComplete ? "#F6F4F4" : "#2C2727"}
+          textColor={isComplete && !loading ? "#F6F4F4" : "#2C2727"}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -124,7 +126,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingBottom: ms(32),
   },
-
   label: {
     fontFamily: "Vazirmatn_700Bold",
     fontWeight: "500",
@@ -132,10 +133,9 @@ const styles = StyleSheet.create({
     lineHeight: ms(20),
     color: "#FFFFFF",
     marginTop: ms(100),
-    marginBottom: ms(70),
+    marginBottom: ms(30), // کمی کمتر تا msg جا بشه
     alignSelf: "center",
   },
-
   row: {
     flexDirection: "row",
     justifyContent: "center",
@@ -153,28 +153,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cellActive: {
-    borderColor: ORANGE,
-  },
+  cellActive: { borderColor: ORANGE },
   digit: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(22),
     lineHeight: ms(22),
     color: "#2C2727",
   },
-
-  hiddenInput: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    opacity: 0,
-  },
-
+  hiddenInput: { position: "absolute", width: 0, height: 0, opacity: 0 },
   cta: {
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
     marginBottom: ms(70),
     alignSelf: "center",
+  },
+  msg: {
+    marginTop: ms(16),
+    color: "#fff",
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
   },
 });
