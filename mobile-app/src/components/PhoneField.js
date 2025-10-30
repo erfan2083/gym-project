@@ -4,7 +4,7 @@ import { View, StyleSheet } from "react-native";
 import { ms } from "react-native-size-matters";
 import CustomInput from "./ui/CustomInput";
 import PhoneLabel from "./PhoneLabel";
-import { normalizeDigits } from "../components/phone";
+import { normalizeDigits } from "../../utils/phone";
 
 export default function PhoneField({ value, onChange, showError, style }) {
   const [focused, setFocused] = useState(false);

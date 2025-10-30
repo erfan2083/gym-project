@@ -16,6 +16,7 @@ import PhoneField from "../../components/PhoneField";
 import PhoneSubmit from "../../components/PhoneSubmit";
 // توجه: مسیر import زیر را دقیقاً طبق پروژه خودت نگه دار
 import { validatePhone, normalizeDigits } from "../../../utils/phone";
+import { signupStart } from "../../../api/auth";
 
 export default function PhoneNumberScreen({ navigation }) {
   const [value, setValue] = useState("");

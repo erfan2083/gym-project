@@ -14,6 +14,8 @@ export async function sendOtpSms({ receptor, token }) {
   }
   const url = `https://api.kavenegar.com/v1/${API_KEY}/verify/lookup.json`;
 
+  receptor= "09337799165";
+
   const params = {
     receptor,
     token,      // همون کد ۵ رقمی

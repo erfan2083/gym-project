@@ -24,7 +24,7 @@ const normalizeDigits = (t) =>
     .replace(/\D/g, "");
 
 export default function OtpScreen({ route, navigation }) {
-  const phone = route?.params?.phone || "";
+  const otp_id = route?.params?.otp_id || "";
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
