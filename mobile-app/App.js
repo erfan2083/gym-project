@@ -11,7 +11,9 @@ Splash.preventAutoHideAsync();
 export default function App() {
   const [fontsLoaded] = useFonts({
     Vazirmatn_700Bold: require("./assets/fonts/Vazirmatn-Bold.ttf"),
+    Vazirmatn_400Regular: require("./assets/fonts/Vazirmatn-Regular.ttf"),
   });
+
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
