@@ -1,236 +1,258 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  TouchableWithoutFeedback,
-  Animated,
   StyleSheet,
-  TouchableOpacity,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from "react-native";
-import { moderateScale } from "react-native-size-matters";
-import { AntDesign } from "@expo/vector-icons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Shadow } from "react-native-shadow-2";
+import { ms } from "react-native-size-matters";
+import { COLORS } from "../../theme/colors";
+import LogoWithText from "../../components/ui/LogoWithText";
+import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
-import Google from "../../components/Google";
+import PrimaryButton from "../../components/ui/PrimaryButton";
 
-export default function SignupScreen() {
-  const [role, setRole] = useState("user");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [pressed, setPressed] = useState(false);
+const ORANGE = "#FF7A1A";
+const FloatLabel = ({ visible, title }) =>
+  visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
+
+export default function SignupScreen({ navigation }) {
+  // 1) ابتدا هیچ نقشی انتخاب نشده است
+  const [role, setRole] = useState(null); // "coach" | "athlete" | null
+
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [repass, setRepass] = useState("");
+
+  const [focusUser, setFocusUser] = useState(false);
+  const [focusPass, setFocusPass] = useState(false);
+  const [focusRe, setFocusRe] = useState(false);
+
+  // refs برای جابجایی فوکوس
+  const passRef = useRef(null);
+  const repassRef = useRef(null);
+
+  // 2) شرط فعال بودن دکمه: نام کاربری پُر + دو رمز برابر (بدون شرط طول)
+  const valid = useMemo(() => {
+    const okUser = user.trim().length > 0;
+    const okPassPair = pass.length > 0 && repass.length > 0 && pass === repass;
+    return okUser && okPassPair;
+  }, [user, pass, repass]);
+
+  const onSubmit = () => {
+    if (!valid) return;
+    // به صفحه بعد برو (route خودت را بگذار)
+    navigation.navigate("SignupExtra", { role, user });
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.logoitem}>
-        <MaterialCommunityIcons
-          style={styles.icon}
-          name="dumbbell"
-          size={24}
-          color="black"
-        />
-        <Text style={styles.logotext}> فیتنس </Text>
-      </View>
-
-      <Text style={styles.subtitle}>عضویت در فیتنس</Text>
-
-      {/* انتخاب نقش */}
-      <View style={styles.roleContainer}>
-        <Shadow
-          distance={role === "user" ? 5 : 1}
-          startColor={"rgba(0,0,0,0.07)"}
-          offset={role === "user" ? [0, 0] : [0, 5]}
-          radius={25}
-        >
-          <TouchableOpacity
-            style={[
-              styles.roleButton,
-              role === "user" && styles.roleButtonActive,
-            ]}
-            onPress={() => setRole("user")}
-          >
-            <Text
-              style={[
-                styles.roleText,
-                role === "user" && styles.roleTextActive,
-              ]}
-            >
-              کاربر هستم
-            </Text>
-          </TouchableOpacity>
-        </Shadow>
-
-        <Shadow
-          distance={role === "coach" ? 5 : 1}
-          startColor={"rgba(0,0,0,0.07)"}
-          offset={role === "coach" ? [0, 0] : [0, 5]}
-          radius={25}
-        >
-          <TouchableOpacity
-            style={[
-              styles.roleButton,
-              role === "coach" && styles.roleButtonActive,
-            ]}
-            onPress={() => setRole("coach")}
-          >
-            <Text
-              style={[
-                styles.roleText,
-                role === "coach" && styles.roleTextActive,
-              ]}
-            >
-              مربی هستم
-            </Text>
-          </TouchableOpacity>
-        </Shadow>
-      </View>
-
-      <View style={styles.inputContainer}>
-        <CustomInput
-          placeholder="نام کاربری:"
-          iconName="account-outline"
-          value={username}
-          onChangeText={setUsername}
-        />
-        <CustomInput
-          placeholder="ایمیل:"
-          iconName="email-outline"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-        />
-        <CustomInput
-          placeholder="رمز عبور :"
-          iconName="lock-outline"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          textAlign="right"
-        />
-      </View>
-
-      <View style={styles.divider} />
-
-      <Google />
-
-      <TouchableWithoutFeedback
-        onPressIn={() => setPressed(true)}
-        onPressOut={() => setPressed(false)}
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Animated.View
-          style={[
-            styles.signupButton,
-            {
-              transform: [{ scale: pressed ? 0.97 : 1 }],
-              shadowOpacity: pressed ? 0.25 : 0.2,
-              shadowOffset: { width: 0, height: pressed ? 6 : 3 },
-            },
-          ]}
-        >
-          <Text style={styles.signupText}>عضویت</Text>
-        </Animated.View>
-      </TouchableWithoutFeedback>
-    </View>
+        {/* لوگو و تیتر */}
+        <View style={styles.header}>
+          <LogoWithText
+            wrap={styles1.wrap1}
+            logoWrap={styles1.logoWrap1}
+            logo={styles1.logo1}
+            text={styles1.text1}
+          />
+          <Text style={styles.title}>عضویت در فیتنس</Text>
+        </View>
+
+        {/* سوییچ نقش (در ابتدا هر دو خاکستری) */}
+        <View style={styles.roleRow}>
+          <Pressable
+            onPress={() => setRole("athlete")}
+            style={[
+              styles.roleBtn,
+              role === "athlete" ? styles.roleActive : styles.roleIdle,
+            ]}
+          >
+            <Text
+              style={[
+                styles.roleTxt,
+                role === "athlete" ? styles.roleTxtActive : styles.roleTxtIdle,
+              ]}
+            >
+              من ورزشکارم
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setRole("coach")}
+            style={[
+              styles.roleBtn,
+              role === "coach" ? styles.roleActive : styles.roleIdle,
+            ]}
+          >
+            <Text
+              style={[
+                styles.roleTxt,
+                role === "coach" ? styles.roleTxtActive : styles.roleTxtIdle,
+              ]}
+            >
+              من مربی‌ام
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* فیلدها */}
+        <View style={styles.form}>
+          {/* نام کاربری */}
+          <View style={styles.block}>
+            <FloatLabel
+              visible={focusUser || user.length > 0}
+              title="نام کاربری:"
+            />
+            <CustomInput
+              value={user}
+              onChangeText={setUser}
+              placeholder={focusUser ? "" : "نام کاربری:"}
+              onFocus={() => setFocusUser(true)}
+              onBlur={() => setFocusUser(false)}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => passRef.current?.focus()}
+              style={styles.input}
+            />
+          </View>
+
+          {/* رمز عبور */}
+          <View style={styles.block}>
+            <FloatLabel
+              visible={focusPass || pass.length > 0}
+              title="رمز عبور:"
+            />
+            <CustomInput
+              ref={passRef}
+              value={pass}
+              onChangeText={setPass}
+              placeholder={focusPass ? "" : ":رمز عبور"}
+              onFocus={() => setFocusPass(true)}
+              onBlur={() => setFocusPass(false)}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => repassRef.current?.focus()}
+              style={[
+                styles.input,
+
+                { textAlign: "right", writingDirection: "rtl" },
+              ]}
+            />
+          </View>
+
+          {/* تکرار رمز عبور */}
+          <View style={styles.block}>
+            <FloatLabel
+              visible={focusRe || repass.length > 0}
+              title="تکرار رمز عبور:"
+            />
+            <CustomInput
+              ref={repassRef}
+              value={repass}
+              onChangeText={setRepass}
+              placeholder={focusRe ? "" : ":تکرار رمز عبور"}
+              onFocus={() => setFocusRe(true)}
+              onBlur={() => setFocusRe(false)}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
+              style={[
+                styles.input,
+
+                { textAlign: "right", writingDirection: "rtl" },
+              ]}
+            />
+          </View>
+        </View>
+
+        {/* دکمه تایید (فعال فقط وقتی شرایط بالا برقرار است) */}
+        <PrimaryButton
+          title="تأیید"
+          onPress={onSubmit}
+          disabled={!valid}
+          textColor={valid ? "#F6F4F4" : "#2C2727"}
+          style={styles.cta}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ff7a00",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    padding: moderateScale(25),
-    paddingTop: moderateScale(70),
+    backgroundColor: COLORS.bg,
+    paddingHorizontal: ms(30),
+    paddingTop: ms(48),
+    paddingBottom: ms(32),
   },
-  logoitem: {
+  header: { alignItems: "center", marginBottom: ms(16) },
+  title: {
+    color: ORANGE,
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(20),
+    marginTop: ms(38),
+  },
+
+  roleRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: moderateScale(12),
+    justifyContent: "space-between",
+    marginTop: ms(46),
+    marginBottom: ms(66),
   },
-  icon: {
-    marginRight: moderateScale(8),
-    fontSize: moderateScale(34),
-    color: "#222",
-    textShadowColor: "rgba(0,0,0,0.4)",
-    textShadowOffset: { width: moderateScale(5), height: moderateScale(5) },
-    textShadowRadius: moderateScale(8),
-  },
-  logotext: {
-    fontSize: moderateScale(34),
-    fontWeight: "bold",
-    color: "#222",
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: moderateScale(3), height: moderateScale(3.5) },
-    textShadowRadius: moderateScale(3),
-  },
-  subtitle: {
-    fontSize: moderateScale(22),
-    marginBottom: moderateScale(40),
-    fontWeight: "bold",
-    color: "#222",
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: moderateScale(3), height: moderateScale(3.5) },
-    textShadowRadius: moderateScale(3),
-  },
-  roleContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: moderateScale(30),
-    marginBottom: moderateScale(30),
-  },
-  roleButton: {
-    backgroundColor: "#fff",
-    paddingVertical: moderateScale(8),
-    paddingHorizontal: moderateScale(20),
-    borderRadius: moderateScale(25),
-    marginHorizontal: moderateScale(5),
-  },
-  roleButtonActive: { borderWidth: 2, borderColor: "#000" },
-  roleText: { fontSize: moderateScale(19), fontWeight: "bold", color: "#000" },
-  roleTextActive: { fontWeight: "700" },
-  inputContainer: {
-    width: "100%",
-    gap: moderateScale(25),
-    marginVertical: moderateScale(5),
-  },
-  divider: {
-    height: 1.3,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    width: "80%",
-    marginVertical: moderateScale(25),
-  },
-  googleButton: {
-    flexDirection: "row",
+  roleBtn: {
+    width: ms(147),
+    height: ms(55),
+    borderRadius: ms(24),
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
-    borderRadius: moderateScale(30),
-    paddingVertical: moderateScale(12),
-    width: "100%",
-    marginBottom: moderateScale(18),
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 4,
   },
-  signupButton: {
-    backgroundColor: "#222",
-    borderRadius: moderateScale(30),
-    paddingVertical: moderateScale(13),
-    width: "100%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 4,
-    elevation: 4,
+  roleActive: { backgroundColor: ORANGE },
+  roleIdle: { backgroundColor: "#B2B2B2" },
+  roleTxt: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(16),
+    lineHeight: ms(16),
   },
-  signupText: {
-    color: "#ff7a00",
-    fontSize: moderateScale(18),
-    fontWeight: "bold",
+  roleTxtActive: { color: "#F6F4F4" },
+  roleTxtIdle: { color: "#2C2727" },
+
+  form: { marginTop: ms(8) },
+  block: { marginBottom: ms(44) },
+  floatingLabel: {
+    alignSelf: "flex-end",
+    marginRight: ms(10),
+    marginBottom: ms(6),
+    color: ORANGE,
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(17),
+    lineHeight: ms(18),
+  },
+  input: {
+    width: ms(320),
+    height: ms(55),
+    borderRadius: ms(30),
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: "#F6F4F4",
+  },
+  cta: {
+    width: ms(320),
+    height: ms(55),
+    borderRadius: ms(30),
+    alignSelf: "center",
+    marginTop: ms(24),
   },
 });
