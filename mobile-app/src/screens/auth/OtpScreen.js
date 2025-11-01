@@ -50,7 +50,7 @@ export default function OtpScreen({ route, navigation }) {
       const { signup_token } = await signupVerify(otp_id, fixed);
       setMsg("کد تایید شد ✅");
       // اینجا می‌تونی هدایت به مرحله بعدی رو انجام بدی:
-      navigation.navigate("SignupComplete", { signup_token });
+      navigation.navigate("Signup", { signup_token });
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "خطا در تایید کد");
     } finally {
