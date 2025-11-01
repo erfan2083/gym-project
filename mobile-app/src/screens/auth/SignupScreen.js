@@ -14,38 +14,66 @@ import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
+import { signupComplete } from "../../../api/auth"; // ← اضافه شد
 
 const ORANGE = "#FF7A1A";
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
-export default function SignupScreen({ navigation }) {
-  // 1) ابتدا هیچ نقشی انتخاب نشده است
-  const [role, setRole] = useState(null); // "coach" | "athlete" | null
+export default function SignupScreen({ route, navigation }) {
+  // از مرحلهٔ OTP می‌آد:
+  const signup_token = route?.params?.signup_token || "";
 
-  const [user, setUser] = useState("");
+  const [role, setRole] = useState(null); // "coach" | "client" | null
+  const [fullName, setFullName] = useState("");
   const [pass, setPass] = useState("");
   const [repass, setRepass] = useState("");
 
-  const [focusUser, setFocusUser] = useState(false);
+  const [focusName, setFocusName] = useState(false);
   const [focusPass, setFocusPass] = useState(false);
   const [focusRe, setFocusRe] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
   // refs برای جابجایی فوکوس
   const passRef = useRef(null);
   const repassRef = useRef(null);
 
-  // 2) شرط فعال بودن دکمه: نام کاربری پُر + دو رمز برابر (بدون شرط طول)
   const valid = useMemo(() => {
-    const okUser = user.trim().length > 0;
-    const okPassPair = pass.length > 0 && repass.length > 0 && pass === repass;
-    return okUser && okPassPair;
-  }, [user, pass, repass]);
+    const okRole = role === "client" || role === "coach";
+    const okName = fullName.trim().length > 0;
+    const okPassLen = pass.length >= 6;     // می‌تونی شرط رو تغییر بدی
+    const okPair = okPassLen && repass.length > 0 && pass === repass;
+    return okRole && okName && okPair;
+  }, [role, fullName, pass, repass]);
 
-  const onSubmit = () => {
-    if (!valid) return;
-    // به صفحه بعد برو (route خودت را بگذار)
-    navigation.navigate("SignupExtra", { role, user });
+  const onSubmit = async () => {
+    if (!valid || loading) return;
+
+    setMsg("");
+    setLoading(true);
+    try {
+      const { user } = await signupComplete({
+        signup_token,
+        full_name: fullName.trim(),
+        password: pass,
+        role,
+      });
+
+      // هدایت بعد از ثبت‌نام:
+      // - اگر مربی: می‌تونی ببریش به ساخت پروفایل مربی
+      // - اگر ورزشکار: به صفحهٔ اصلی
+      if (user?.role === "coach") {
+        navigation.replace("TrainerProfileSetup"); // اگه چنین صفحه‌ای داری
+      } else {
+        navigation.replace("Home"); // یا route دلخواه
+      }
+    } catch (e) {
+      setMsg(e?.response?.data?.message || e.message || "خطا در تکمیل ثبت‌نام");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,19 +93,19 @@ export default function SignupScreen({ navigation }) {
           <Text style={styles.title}>عضویت در فیتنس</Text>
         </View>
 
-        {/* سوییچ نقش (در ابتدا هر دو خاکستری) */}
+        {/* سوییچ نقش */}
         <View style={styles.roleRow}>
           <Pressable
-            onPress={() => setRole("athlete")}
+            onPress={() => setRole("client")}
             style={[
               styles.roleBtn,
-              role === "athlete" ? styles.roleActive : styles.roleIdle,
+              role === "client" ? styles.roleActive : styles.roleIdle,
             ]}
           >
             <Text
               style={[
                 styles.roleTxt,
-                role === "athlete" ? styles.roleTxtActive : styles.roleTxtIdle,
+                role === "client" ? styles.roleTxtActive : styles.roleTxtIdle,
               ]}
             >
               من ورزشکارم
@@ -104,19 +132,19 @@ export default function SignupScreen({ navigation }) {
 
         {/* فیلدها */}
         <View style={styles.form}>
-          {/* نام کاربری */}
+          {/* نام و نام خانوادگی */}
           <View style={styles.block}>
             <FloatLabel
-              visible={focusUser || user.length > 0}
-              title="نام کاربری:"
+              visible={focusName || fullName.length > 0}
+              title="نام و نام خانوادگی:"
             />
             <CustomInput
-              value={user}
-              onChangeText={setUser}
-              placeholder={focusUser ? "" : "نام کاربری:"}
-              onFocus={() => setFocusUser(true)}
-              onBlur={() => setFocusUser(false)}
-              autoCapitalize="none"
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder={focusName ? "" : "نام و نام خانوادگی:"}
+              onFocus={() => setFocusName(true)}
+              onBlur={() => setFocusName(false)}
+              autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="next"
               onSubmitEditing={() => passRef.current?.focus()}
@@ -142,11 +170,7 @@ export default function SignupScreen({ navigation }) {
               autoCorrect={false}
               returnKeyType="next"
               onSubmitEditing={() => repassRef.current?.focus()}
-              style={[
-                styles.input,
-
-                { textAlign: "right", writingDirection: "rtl" },
-              ]}
+              style={[styles.input, { textAlign: "right", writingDirection: "rtl" }]}
             />
           </View>
 
@@ -168,21 +192,20 @@ export default function SignupScreen({ navigation }) {
               autoCorrect={false}
               returnKeyType="done"
               onSubmitEditing={onSubmit}
-              style={[
-                styles.input,
-
-                { textAlign: "right", writingDirection: "rtl" },
-              ]}
+              style={[styles.input, { textAlign: "right", writingDirection: "rtl" }]}
             />
           </View>
+
+          {!!msg && (
+            <Text style={{ color: "#FF4D4F", alignSelf: "flex-end" }}>{msg}</Text>
+          )}
         </View>
 
-        {/* دکمه تایید (فعال فقط وقتی شرایط بالا برقرار است) */}
         <PrimaryButton
-          title="تأیید"
+          title={loading ? "در حال ثبت‌نام..." : "تأیید"}
           onPress={onSubmit}
-          disabled={!valid}
-          textColor={valid ? "#F6F4F4" : "#2C2727"}
+          disabled={!valid || loading}
+          textColor={valid && !loading ? "#F6F4F4" : "#2C2727"}
           style={styles.cta}
         />
       </KeyboardAvoidingView>
@@ -210,7 +233,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: ms(46),
-    marginBottom: ms(66),
+    marginBottom: ms(40),
   },
   roleBtn: {
     width: ms(147),
@@ -230,7 +253,7 @@ const styles = StyleSheet.create({
   roleTxtIdle: { color: "#2C2727" },
 
   form: { marginTop: ms(8) },
-  block: { marginBottom: ms(44) },
+  block: { marginBottom: ms(28) }, // کمی فشرده‌تر برای جا دادن پیام
   floatingLabel: {
     alignSelf: "flex-end",
     marginRight: ms(10),
@@ -253,6 +276,6 @@ const styles = StyleSheet.create({
     height: ms(55),
     borderRadius: ms(30),
     alignSelf: "center",
-    marginTop: ms(24),
+    marginTop: ms(12),
   },
 });
