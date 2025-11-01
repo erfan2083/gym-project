@@ -1,18 +1,7 @@
-// components/CustomInput.tsx
+// components/CustomInput.js
 import React from "react";
-import { TextInput, StyleSheet, ViewStyle, TextStyle } from "react-native";
+import { TextInput, StyleSheet } from "react-native";
 import { ms } from "react-native-size-matters";
-
-type Props = {
-  value?: string,
-  onChangeText?: (t: string) => void,
-  placeholder?: string,
-  style?: ViewStyle,
-  inputStyle?: TextStyle,
-  width?: number,
-  height?: number,
-  borderRadius?: number,
-};
 
 export default function CustomInput({
   value,
@@ -24,7 +13,7 @@ export default function CustomInput({
   height = ms(63),
   borderRadius = ms(30),
   ...rest
-}: Props) {
+}) {
   return (
     <TextInput
       value={value}
@@ -43,17 +32,13 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "#F6F4F4",
     paddingHorizontal: ms(16),
-
-    // --- TYPOGRAPHY (exact) ---
-    fontFamily: "Vazirmatn_700Bold", // اطمینان از نصب فونت
-    fontSize: ms(20), // 20px
-    lineHeight: ms(20), // 100% از 20px
-    letterSpacing: 0, // 0%
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(20),
+    lineHeight: ms(20),
+    letterSpacing: 0,
     color: "#2C2727",
-    includeFontPadding: false, // برای تطابق دقیق lineHeight در اندروید
-    textAlignVertical: "center", // هم‌تراز عمودی بهتر در ارتفاع 63
-
-    // RTL
+    includeFontPadding: false,
+    textAlignVertical: "center",
     writingDirection: "rtl",
   },
 });

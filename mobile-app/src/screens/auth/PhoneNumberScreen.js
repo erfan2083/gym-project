@@ -25,8 +25,8 @@ import { signupStart } from "../../../api/auth";
 export default function PhoneNumberScreen({ navigation }) {
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(false); // ← اضافه شد
+  const [msg, setMsg] = useState(""); // ← اضافه شد
 
   const { valid, errors } = useMemo(() => validatePhone(value), [value]);
   const showError = touched && errors.length > 0;
@@ -43,22 +43,9 @@ export default function PhoneNumberScreen({ navigation }) {
     // const phone = normalizePhone(digitsOnly);
     const phone = digitsOnly;
 
-    // ✅ DEV BYPASS: بدون هیچ تماس سرور، مستقیم برو Signup
-    if (phone === "09999999999") {
-      navigation.navigate("ResetPas", { phone, otp_id: null, skipOtp: true });
-      setLoading(false);
-      return;
-    }
-
     try {
-      // فلو معمول: تماس با بک‌اند
       const { otp_id } = await signupStart(phone);
-
-      // اگر فعلاً OTP رو حذف کردی و میخوای مستقیم بری Signup:
-      navigation.navigate("Signup", { phone, otp_id, skipOtp: true });
-
-      // اگر خواستی برگردونی به OTP، خط بالا رو کامنت و خط زیر رو آنکامنت کن:
-      // navigation.navigate("Otp", { otp_id, phone });
+      navigation.navigate("Otp", { otp_id });
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "خطا در ارسال کد");
     } finally {
@@ -108,15 +95,34 @@ export default function PhoneNumberScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { alignItems: "center", marginTop: ms(48) },
-  inputPos: { position: "absolute", top: ms(287), left: ms(35), right: ms(35) },
-  buttonPos: {
-    position: "absolute",
-    top: ms(659),
-    left: ms(35),
-    right: ms(35),
+
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    paddingHorizontal: ms(30),
+    paddingTop: ms(48),
+    paddingBottom: ms(32),
   },
+
+  header: {
+    alignItems: "center",
+    marginTop: ms(29),
+    marginBottom: ms(80),
+  },
+
+  inputPos: {
+    alignSelf: "center",
+    width: ms(320),
+    marginTop: ms(58),
+  },
+
+  buttonPos: {
+    marginTop: "auto",
+    alignSelf: "center",
+    width: ms(320),
+    marginBottom: ms(89),
+  },
+
   errorText: {
     marginTop: ms(8),
     alignSelf: "flex-end",
