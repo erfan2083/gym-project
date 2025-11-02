@@ -11,37 +11,30 @@ import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
-
 import PhoneField from "../../components/PhoneField";
 import PhoneSubmit from "../../components/PhoneSubmit";
-
-// اگر normalizeDigits فقط تبدیل رقم است، بهتره یک normalizePhone هم داشته باشی
 import {
   validatePhone,
-  normalizeDigits /* normalizePhone */,
+  normalizeDigits,
+  formatIranMobile, // ← اضافه شد
 } from "../../../utils/phone";
 import { signupStart } from "../../../api/auth";
 
 export default function PhoneNumberScreen({ navigation }) {
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
-  const [loading, setLoading] = useState(false); // ← اضافه شد
-  const [msg, setMsg] = useState(""); // ← اضافه شد
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
   const { valid, errors } = useMemo(() => validatePhone(value), [value]);
   const showError = touched && errors.length > 0;
 
   const onSubmit = async () => {
-    if (!valid || loading) return; // جلوگیری از دابل‌کلیک
+    if (!valid || loading) return;
     setMsg("");
     setLoading(true);
 
-    // 1) تبدیل اعداد فارسی/عربی → انگلیسی
-    const digitsOnly = normalizeDigits((value || "").trim());
-
-    // 2) اگر تابع نرمال‌سازی کامل داری، استفاده کن:
-    // const phone = normalizePhone(digitsOnly);
-    const phone = digitsOnly;
+    const phone = normalizeDigits(value);
 
     try {
       const { otp_id } = await signupStart(phone);
@@ -73,7 +66,7 @@ export default function PhoneNumberScreen({ navigation }) {
             value={value}
             onChange={(v) => {
               if (!touched) setTouched(true);
-              setValue(v);
+              setValue(formatIranMobile(v)); // فرمت خودکار شماره
             }}
             showError={showError}
           />
@@ -94,8 +87,10 @@ export default function PhoneNumberScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
-
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.bg,
@@ -103,26 +98,22 @@ const styles = StyleSheet.create({
     paddingTop: ms(48),
     paddingBottom: ms(32),
   },
-
   header: {
     alignItems: "center",
     marginTop: ms(29),
-    marginBottom: ms(80),
+    marginBottom: ms(110),
   },
-
   inputPos: {
     alignSelf: "center",
     width: ms(320),
     marginTop: ms(58),
   },
-
   buttonPos: {
     marginTop: "auto",
     alignSelf: "center",
     width: ms(320),
     marginBottom: ms(89),
   },
-
   errorText: {
     marginTop: ms(8),
     alignSelf: "flex-end",
