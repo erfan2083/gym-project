@@ -1,4 +1,3 @@
-// utils/phone.js
 export const normalizeDigits = (t) => {
   const fa = "۰۱۲۳۴۵۶۷۸۹";
   const ar = "٠١٢٣٤٥٦٧٨٩";
@@ -7,22 +6,26 @@ export const normalizeDigits = (t) => {
     .replace(/[٠-٩]/g, (c) => String(ar.indexOf(c)))
     .replace(/\D/g, "");
 };
-
+export const chunkDigits = (digits, pattern = [4, 3, 4], sep = " ") => {
+  const out = [];
+  let i = 0;
+  for (const size of pattern) {
+    if (i >= digits.length) break;
+    out.push(digits.slice(i, i + size));
+    i += size;
+  }
+  return out.filter(Boolean).join(sep);
+};
+export const formatIranMobile = (input) => {
+  const d = normalizeDigits(input).slice(0, 11);
+  return chunkDigits(d, [4, 3, 4], " ");
+};
 export const validatePhone = (val) => {
   const v = normalizeDigits(val);
-  const errors = [];
-
+  const isValid = /^09\d{9}$/.test(v);
   if (v.length === 0) return { valid: false, errors: [] };
-
-  if (v.length === 1) {
-    if (v[0] !== "0") errors.push("شماره باید با 09 شروع شود.");
-  } else {
-    if (!v.startsWith("09")) errors.push("شماره باید با 09 شروع شود.");
-  }
-
-  if (v.length > 2 && v.length !== 11) {
-    errors.push("شماره باید دقیقاً ۱۱ رقم باشد.");
-  }
-
-  return { valid: v.length === 11 && v.startsWith("09"), errors };
+  return {
+    valid: isValid,
+    errors: isValid ? [] : ["شماره موبایل معتبر نیست."],
+  };
 };
