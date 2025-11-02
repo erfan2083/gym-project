@@ -44,7 +44,7 @@ export default function OtpScreen({ route, navigation }) {
     if (!isComplete || loading) return;
     setMsg("");
     setLoading(true);
-    try {
+    try { 
       // اطمینان: دوباره نرمال کنیم
       const fixed = normalizeDigits(code);
       const { signup_token } = await signupVerify(otp_id, fixed);

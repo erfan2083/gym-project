@@ -23,7 +23,7 @@ export default function SignupScreen({ route, navigation }) {
   // از مرحلهٔ OTP
   const signup_token = route?.params?.signup_token || "";
 
-  const [role, setRole] = useState(null); // "coach" | "athlete" | null
+  const [role, setRole] = useState(null); 
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [repass, setRepass] = useState("");
@@ -40,7 +40,7 @@ export default function SignupScreen({ route, navigation }) {
   const repassRef = useRef(null);
 
   const valid = useMemo(() => {
-    const okRole = role === "coach" || role === "athlete";
+    const okRole = role === "coach" || role === "client";
     const okUser = user.trim().length > 0;
     const okPassLen = pass.length >= 6;
     const okPair = okPassLen && repass.length > 0 && pass === repass;
@@ -91,16 +91,16 @@ export default function SignupScreen({ route, navigation }) {
         {/* سوییچ نقش */}
         <View style={styles.roleRow}>
           <Pressable
-            onPress={() => setRole("athlete")}
+            onPress={() => setRole("client")}
             style={[
               styles.roleBtn,
-              role === "athlete" ? styles.roleActive : styles.roleIdle,
+              role === "client" ? styles.roleActive : styles.roleIdle,
             ]}
           >
             <Text
               style={[
                 styles.roleTxt,
-                role === "athlete" ? styles.roleTxtActive : styles.roleTxtIdle,
+                role === "client" ? styles.roleTxtActive : styles.roleTxtIdle,
               ]}
             >
               من ورزشکارم
