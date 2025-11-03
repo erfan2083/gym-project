@@ -1,3 +1,4 @@
+// src/screens/auth/SignupScreen.js
 import React, { useMemo, useRef, useState } from "react";
 import {
   View,
@@ -74,8 +75,8 @@ export default function SignupScreen({ route, navigation }) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         enableOnAndroid
-        enableAutomaticScroll // iOS
-        extraScrollHeight={24} // کمک می‌کند آخرین input/دکمه زیر کیبورد نرود
+        enableAutomaticScroll
+        extraScrollHeight={24}
         extraHeight={Platform.OS === "android" ? 60 : 0}
         showsVerticalScrollIndicator={false}
       >
@@ -201,7 +202,7 @@ export default function SignupScreen({ route, navigation }) {
           </View>
 
           {!!msg && (
-            <Text style={{ color: "#FF4D4F", alignSelf: "flex-end" }}>
+            <Text style={{ color: COLORS.danger, alignSelf: "flex-end" }}>
               {msg}
             </Text>
           )}
@@ -215,8 +216,15 @@ export default function SignupScreen({ route, navigation }) {
           title={loading ? "در حال ثبت‌نام..." : "تایید"}
           onPress={onSubmit}
           disabled={!valid || loading}
-          textColor={valid && !loading ? COLORS.text : COLORS.text}
-          style={styles.cta}
+          textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
+          style={[
+            styles.cta,
+            {
+              backgroundColor:
+                valid && !loading ? COLORS.primary : COLORS.disabled,
+            },
+            (!valid || loading) && { opacity: 0.9 },
+          ]}
         />
       </KeyboardAwareScrollView>
     </SafeAreaView>
@@ -277,8 +285,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
   },
-  lastInput: { marginBottom: ms(32) },
-  footerSpacer: { height: ms(84) },
+  lastInput: { marginBottom: ms(12) },
+  footerSpacer: { height: ms(24) },
   cta: {
     width: ms(320),
     height: ms(55),

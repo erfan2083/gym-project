@@ -5,12 +5,12 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   LayoutAnimation,
   UIManager,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
@@ -18,8 +18,6 @@ import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 
-const ORANGE = "#FF7A1A";
-const DISABLED_BG = "#B2B2B2"; // رنگ پس‌زمینه دکمه ورود وقتی غیرفعال است
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
@@ -45,7 +43,7 @@ export default function LoginScreen({ navigation }) {
     return { phoneOk: ok, valid: ok && pass.length > 0 };
   }, [phone, pass]);
 
-  // برای جابه‌جایی نرم دکمه هنگام فعال/غیرفعال شدن
+  // انیمیشن نرم (مثل قبل)
   useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -70,13 +68,19 @@ export default function LoginScreen({ navigation }) {
     navigation.navigate("ForgotPassword", { phone: normalizeDigits(phone) });
   };
 
-  const showSignup = !valid; // ✅ وقتی معتبر شد، بخش عضویت مخفی می‌شود
+  const showSignup = !valid;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        enableAutomaticScroll
+        extraScrollHeight={24}
+        extraHeight={Platform.OS === "android" ? 60 : 0}
+        showsVerticalScrollIndicator={false}
       >
         {/* هدر */}
         <View style={styles.header}>
@@ -105,7 +109,6 @@ export default function LoginScreen({ navigation }) {
               inputMode="numeric"
               onFocus={() => setFPhone(true)}
               onBlur={() => setFPhone(false)}
-              // placeholder راست، متن واردشده LTR
               style={[
                 styles.input,
                 styles.inputFirst,
@@ -127,7 +130,6 @@ export default function LoginScreen({ navigation }) {
               secureTextEntry
               onFocus={() => setFPass(true)}
               onBlur={() => setFPass(false)}
-              // placeholder راست، متن LTR
               style={[
                 styles.input,
                 pass.length === 0 && !fPass
@@ -139,20 +141,23 @@ export default function LoginScreen({ navigation }) {
               autoCapitalize="none"
               autoCorrect={false}
             />
+
             <Pressable onPress={onForgot} hitSlop={8}>
               <Text style={styles.forgot}>
                 رمز عبور خود را فراموش کرده اید؟{" "}
               </Text>
             </Pressable>
-            <View style={[styles.loginWrap, valid && styles.loginWrapFixed]}>
+
+            {/* دکمه ورود */}
+            <View style={styles.loginWrap}>
               <PrimaryButton
                 title="ورود"
                 onPress={onLogin}
                 disabled={!valid}
-                textColor={valid ? "#F6F4F4" : "#2C2727"}
+                textColor={valid ? COLORS.onPrimary : COLORS.text}
                 style={[
                   styles.loginBtn,
-                  { backgroundColor: valid ? ORANGE : DISABLED_BG },
+                  { backgroundColor: valid ? COLORS.primary : COLORS.disabled },
                   !valid ? styles.loginBtnDisabled : null,
                 ]}
               />
@@ -167,7 +172,7 @@ export default function LoginScreen({ navigation }) {
                   alignSelf: "flex-end",
                   marginRight: ms(13),
                   marginBottom: ms(19),
-                  color: ORANGE,
+                  color: COLORS.primary,
                   fontFamily: "Vazirmatn_400Regular",
                   fontSize: ms(15),
                   lineHeight: ms(16),
@@ -179,28 +184,29 @@ export default function LoginScreen({ navigation }) {
               <PrimaryButton
                 title="عضویت"
                 onPress={onSignup}
-                textColor="#2C2727"
-                style={styles.signupBtn}
+                textColor={COLORS.text}
+                style={[styles.signupBtn, { backgroundColor: COLORS.primary }]}
               />
             </View>
           )}
+
+          {/* فاصلهٔ انتهایی */}
+          <View style={{ height: ms(24) }} />
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
     paddingHorizontal: ms(30),
     paddingTop: ms(48),
     paddingBottom: ms(32),
   },
   header: { alignItems: "center", marginBottom: ms(16), marginTop: ms(29) },
   title: {
-    color: ORANGE,
+    color: COLORS.primary,
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(20),
     marginTop: ms(38),
@@ -211,32 +217,27 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginRight: ms(10),
     marginBottom: ms(6),
-    color: ORANGE,
+    color: COLORS.primary,
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(17),
     lineHeight: ms(18),
   },
-  // styles
   input: {
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
     borderWidth: 2,
     borderColor: "transparent",
-    backgroundColor: "#F6F4F4",
+    backgroundColor: COLORS.inputBg,
   },
-  inputFirst: {
-    marginBottom: ms(25), // فقط برای اولی
-  },
-  errorBorder: {
-    borderColor: "#FF4D4F",
-  },
+  inputFirst: { marginBottom: ms(25) },
+  errorBorder: { borderColor: COLORS.danger },
   forgot: {
     alignSelf: "flex-end",
     marginRight: ms(10),
     marginTop: ms(18),
     marginBottom: ms(38),
-    color: ORANGE,
+    color: COLORS.primary,
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(14),
     lineHeight: ms(16),
@@ -248,24 +249,14 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     justifyContent: "center",
   },
-  loginBtnDisabled: {
-    backgroundColor: DISABLED_BG,
-  },
+  loginBtnDisabled: { backgroundColor: COLORS.disabled },
   signupBtn: {
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
     alignSelf: "center",
-    backgroundColor: ORANGE,
   },
   loginWrap: {
     marginTop: ms(10),
-    position: "relative",
-  },
-  loginWrapFixed: {
-    position: "absolute",
-    left: ms(1),
-    right: ms(1),
-    top: ms(250),
   },
 });

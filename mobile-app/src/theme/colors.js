@@ -1,3 +1,4 @@
+// src/theme/colors.js
 export const COLORS = {
   bg: "#262424",
   primary: "#FF7517",
@@ -9,4 +10,5 @@ export const COLORS = {
   danger: "#FF6B6B",
   disabled: "#B2B2B2",
   label: "#FF7517",
+  onPrimary: "#F6F4F4",
 };
