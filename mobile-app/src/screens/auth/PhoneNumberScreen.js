@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     marginTop: ms(8),
     alignSelf: "flex-end",
     marginRight: ms(10),
-    color: "#FF4D4F",
+    color: COLORS.borderError,
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
     lineHeight: ms(16),

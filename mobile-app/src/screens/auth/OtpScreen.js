@@ -1,20 +1,19 @@
-// src/screens/auth/OtpScreen.js
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   SafeAreaView,
   Pressable,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
-import { COLORS } from "../../theme/colors"; // ← اضافه شد
+import { COLORS } from "../../theme/colors";
 import { signupVerify } from "../../../api/auth";
 
 const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
@@ -73,9 +72,15 @@ export default function OtpScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        enableAutomaticScroll
+        extraScrollHeight={24}
+        extraHeight={Platform.OS === "android" ? 60 : 0}
+        showsVerticalScrollIndicator={false}
       >
         <View style={{ alignItems: "center", width: "100%" }}>
           <LogoWithText
@@ -122,39 +127,35 @@ export default function OtpScreen({ route, navigation }) {
           {!!msg && <Text style={styles.msg}>{msg}</Text>}
         </View>
 
+        {/* فاصله انتهایی برای بار ژست/کیبورد */}
+        <View style={{ height: ms(16) }} />
+
         <PrimaryButton
           title={loading ? "در حال تایید..." : "تایید"}
           disabled={!isComplete || loading}
           onPress={handleSubmit}
-          style={[
-            styles.cta,
-            {
-              backgroundColor:
-                isComplete && !loading ? COLORS.primary : COLORS.disabled,
-            },
-          ]}
-          textColor={isComplete && !loading ? COLORS.onPrimary : COLORS.text}
+          style={styles.cta}
+          textColor={isComplete && !loading ? COLORS.white : COLORS.text}
         />
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
     paddingHorizontal: ms(24),
     paddingTop: ms(72),
-    justifyContent: "space-between",
     paddingBottom: ms(32),
+    justifyContent: "space-between",
+    backgroundColor: COLORS.bg,
+    flexGrow: 1,
   },
   label: {
-    fontFamily: "Vazirmatn_700Bold",
-    fontWeight: "500",
+    fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(20),
     lineHeight: ms(20),
-    color: COLORS.onPrimary,
+    color: COLORS.white,
     marginTop: ms(100),
     marginBottom: ms(30),
     alignSelf: "center",
@@ -170,13 +171,13 @@ const styles = StyleSheet.create({
     width: ms(49.37),
     height: ms(49.37),
     borderRadius: ms(12),
-    backgroundColor: COLORS.inputBg, // ← از تم
+    backgroundColor: COLORS.inputBg,
     borderWidth: ms(2),
     borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },
-  cellActive: { borderColor: COLORS.primary }, // ← از تم
+  cellActive: { borderColor: COLORS.primary },
   digit: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(22),
@@ -188,12 +189,12 @@ const styles = StyleSheet.create({
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
-    marginBottom: ms(70),
     alignSelf: "center",
+    marginBottom: ms(70),
   },
   msg: {
     marginTop: ms(16),
-    color: COLORS.onPrimary,
+    color: COLORS.white,
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
   },
