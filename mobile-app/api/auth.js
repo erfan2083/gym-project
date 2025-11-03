@@ -21,8 +21,8 @@ export async function signupComplete({ signup_token, full_name, password, role }
 }
 
 export async function login({ phone, password }) {
-  const res = await api.post('/auth/login', {
-    phone: normalizePhone(phone), password
+  const res = await api.post('api/auth/login', {
+    phone: phone, password
   });
   const { token, user } = res.data;
   await AsyncStorage.setItem('token', token);

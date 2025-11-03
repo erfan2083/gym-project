@@ -18,6 +18,7 @@ import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
+import { login } from "../../../api/auth"; // ← اتصال به API (فرانت) :contentReference[oaicite:2]{index=2}
 
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
@@ -38,9 +39,13 @@ export default function LoginScreen({ navigation }) {
   const [fPass, setFPass] = useState(false);
   const [showPass, setShowPass] = useState(false); // چشم
 
+  // اضافه‌ها:
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
   // 11 رقم و شروع با 09 + پسورد غیرخالی
   const { phoneOk, valid } = useMemo(() => {
-    const p = normalizeDigits(phone);
+    const p = phone;
     const ok = p.length === 11 && p.startsWith("09");
     return { phoneOk: ok, valid: ok && pass.length > 0 };
   }, [phone, pass]);
@@ -56,10 +61,26 @@ export default function LoginScreen({ navigation }) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [valid]);
 
-  const onLogin = () => {
-    if (!valid) return;
-    console.log("login:", normalizeDigits(phone), pass);
-    // navigation.replace("Home");
+  const onLogin = async () => {
+    if (!valid || loading) return;
+    setMsg("");
+    setLoading(true);
+    try {
+      // شماره را نرمال و فقط رقم می‌فرستیم
+      const { user } = await login({ phone: phone, password: pass }); // ذخیرهٔ توکن در خود تابع انجام می‌شود :contentReference[oaicite:3]{index=3}
+
+      // هدایت بعد از ورود (می‌تونی بر اساس نقش تصمیم بگیری)
+      if (user?.role === "coach") {
+        navigation.replace("Home"); // یا داشبورد مربی
+      } else {
+        navigation.replace("Home");
+      }
+    } catch (e) {
+      const apiMsg = e?.response?.data?.message || e.message || "خطا در ورود";
+      setMsg(apiMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onSignup = () => {
@@ -67,7 +88,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   const onForgot = () => {
-    navigation.navigate("ResetPas", { phone: normalizeDigits(phone) });
+    navigation.navigate("ResetPas", { phone: phone });
   };
 
   const showSignup = !valid;
@@ -122,19 +143,19 @@ export default function LoginScreen({ navigation }) {
             />
           </View>
 
-          {/* پسورد + آیکون چشم (مثل ResetPassword) */}
+          {/* پسورد + آیکون چشم */}
           <View style={styles.block}>
             <FloatLabel visible={fPass || pass.length > 0} title="رمز عبور:" />
             <View style={styles.inputWrap}>
               <CustomInput
                 value={pass}
                 onChangeText={setPass}
-                placeholder={fPass ? "" : ":رمز عبور"}
+                placeholder={fPass ? "" : "رمز عبور:"}
                 secureTextEntry={!showPass}
                 onFocus={() => setFPass(true)}
                 onBlur={() => setFPass(false)}
                 style={[
-                  styles.inputWithIcon, // پدینگ امن برای عدم اورلپ
+                  styles.inputWithIcon,
                   pass.length === 0 && !fPass
                     ? { textAlign: "right", writingDirection: "rtl" }
                     : { textAlign: "left", writingDirection: "ltr" },
@@ -159,6 +180,7 @@ export default function LoginScreen({ navigation }) {
               </Pressable>
             </View>
 
+            {/* فراموشی رمز */}
             <Pressable onPress={onForgot} hitSlop={8}>
               <Text style={styles.forgot}>
                 رمز عبور خود را فراموش کرده اید؟
@@ -168,17 +190,31 @@ export default function LoginScreen({ navigation }) {
             {/* دکمه ورود */}
             <View style={styles.loginWrap}>
               <PrimaryButton
-                title="ورود"
+                title={loading ? "در حال ورود..." : "ورود"}
                 onPress={onLogin}
-                disabled={!valid}
-                textColor={valid ? COLORS.onPrimary : COLORS.text}
+                disabled={!valid || loading}
+                textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
                 style={[
                   styles.loginBtn,
-                  { backgroundColor: valid ? COLORS.primary : COLORS.disabled },
-                  !valid ? styles.loginBtnDisabled : null,
+                  { backgroundColor: valid && !loading ? COLORS.primary : COLORS.disabled },
+                  (!valid || loading) ? styles.loginBtnDisabled : null,
                 ]}
               />
             </View>
+
+            {/* پیام خطا */}
+            {!!msg && (
+              <Text
+                style={{
+                  color: COLORS.danger,
+                  alignSelf: "flex-end",
+                  marginRight: ms(10),
+                  marginTop: ms(10),
+                }}
+              >
+                {msg}
+              </Text>
+            )}
           </View>
 
           {/* فقط وقتی نامعتبر است، گزینه عضویت را نشان بده */}
@@ -206,7 +242,6 @@ export default function LoginScreen({ navigation }) {
             </View>
           )}
 
-          {/* فاصلهٔ انتهایی */}
           <View style={{ height: ms(24) }} />
         </View>
       </KeyboardAwareScrollView>
@@ -246,7 +281,6 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
   },
-  // ورودی رمز با فضای امن برای آیکون سمت چپ (RTL)
   inputWithIcon: {
     width: ms(320),
     height: ms(55),
@@ -254,7 +288,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
-    paddingLeft: ms(56), // فضای کافی تا متن زیر آیکون نرود
+    paddingLeft: ms(56),
     paddingRight: ms(20),
   },
   inputWrap: {
@@ -264,7 +298,7 @@ const styles = StyleSheet.create({
   },
   eyeBtn: {
     position: "absolute",
-    left: ms(12), // چون ورودی RTL است، آیکون سمت چپ
+    left: ms(12),
     top: "50%",
     transform: [{ translateY: -14 }],
     height: ms(28),

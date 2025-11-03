@@ -167,6 +167,7 @@ export async function login(req, res) {
 
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
+    console.log(user)
     return res.json({
       message: 'Login successful',
       token,
