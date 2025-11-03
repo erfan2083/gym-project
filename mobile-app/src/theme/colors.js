@@ -8,4 +8,5 @@ export const COLORS = {
   border: "rgba(0,0,0,0.12)",
   danger: "#FF6B6B",
   disabled: "#B2B2B2",
+  label: "#FF7517",
 };

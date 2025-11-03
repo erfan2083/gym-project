@@ -31,7 +31,7 @@ export default function PhoneNumberScreen({ navigation }) {
 
   const onSubmit = async () => {
     if (normalizeDigits(value) === "09999999999")
-      return navigation.navigate("Otp", {
+      return navigation.navigate("Signup", {
         otp_id: `dev-${Date.now()}`,
         phone: "09999999999",
       });

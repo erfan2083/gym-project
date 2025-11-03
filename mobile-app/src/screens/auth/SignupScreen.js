@@ -4,38 +4,35 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
-import { signupComplete } from "../../../api/auth"; // ← از بک‌اند
+import { signupComplete } from "../../../api/auth";
 
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
 export default function SignupScreen({ route, navigation }) {
-  // از مرحلهٔ OTP
   const signup_token = route?.params?.signup_token || "";
 
-  const [role, setRole] = useState(null); 
+  const [role, setRole] = useState(null);
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [repass, setRepass] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // فوکوس
   const [focusUser, setFocusUser] = useState(false);
   const [focusPass, setFocusPass] = useState(false);
   const [focusRe, setFocusRe] = useState(false);
 
-  // refs
   const passRef = useRef(null);
   const repassRef = useRef(null);
 
@@ -58,7 +55,6 @@ export default function SignupScreen({ route, navigation }) {
         password: pass,
         role,
       });
-
       if (created?.role === "coach") {
         navigation.replace("TrainerProfileSetup");
       } else {
@@ -73,9 +69,15 @@ export default function SignupScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        enableAutomaticScroll // iOS
+        extraScrollHeight={24} // کمک می‌کند آخرین input/دکمه زیر کیبورد نرود
+        extraHeight={Platform.OS === "android" ? 60 : 0}
+        showsVerticalScrollIndicator={false}
       >
         {/* لوگو و تیتر */}
         <View style={styles.header}>
@@ -127,7 +129,7 @@ export default function SignupScreen({ route, navigation }) {
 
         {/* فیلدها */}
         <View style={styles.form}>
-          {/* نام کاربری */}
+          {/* نام و نام خانوادگی */}
           <View style={styles.block}>
             <FloatLabel
               visible={focusUser || user.length > 0}
@@ -205,23 +207,24 @@ export default function SignupScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* فاصله قبل از دکمه */}
+        <View style={styles.footerSpacer} />
+
         {/* دکمه تایید */}
         <PrimaryButton
-          title={loading ? "در حال ثبت‌نام..." : "تأیید"}
+          title={loading ? "در حال ثبت‌نام..." : "تایید"}
           onPress={onSubmit}
           disabled={!valid || loading}
-          textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
+          textColor={valid && !loading ? COLORS.text : COLORS.text}
           style={styles.cta}
         />
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
     paddingHorizontal: ms(30),
     paddingTop: ms(48),
     paddingBottom: ms(32),
@@ -249,11 +252,11 @@ const styles = StyleSheet.create({
   roleActive: { backgroundColor: COLORS.primary },
   roleIdle: { backgroundColor: COLORS.disabled },
   roleTxt: {
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(16),
     lineHeight: ms(16),
   },
-  roleTxtActive: { color: COLORS.onPrimary },
+  roleTxtActive: { color: COLORS.inputBg },
   roleTxtIdle: { color: COLORS.text },
   form: { marginTop: ms(8) },
   block: { marginBottom: ms(24) },
@@ -262,7 +265,7 @@ const styles = StyleSheet.create({
     marginRight: ms(10),
     marginBottom: ms(6),
     color: COLORS.label,
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(17),
     lineHeight: ms(18),
   },
@@ -274,13 +277,13 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
   },
-  lastInput: { marginBottom: ms(50) },
+  lastInput: { marginBottom: ms(32) },
+  footerSpacer: { height: ms(84) },
   cta: {
-    position: "absolute",
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
     alignSelf: "center",
-    top: ms(680),
+    marginBottom: ms(16),
   },
 });
