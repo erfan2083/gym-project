@@ -14,7 +14,8 @@ import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
-import { signupVerify } from "../../../api/auth"; // ← اضافه شد
+import { COLORS } from "../../theme/colors"; // ← اضافه شد
+import { signupVerify } from "../../../api/auth";
 
 const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 const toFa = (s) => String(s || "").replace(/\d/g, (d) => FA[+d]);
@@ -29,8 +30,8 @@ export default function OtpScreen({ route, navigation }) {
 
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
-  const [loading, setLoading] = useState(false); // ← اضافه شد
-  const [msg, setMsg] = useState(""); // ← اضافه شد
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
   const inputRef = useRef(null);
   const length = 5;
 
@@ -59,11 +60,9 @@ export default function OtpScreen({ route, navigation }) {
     setMsg("");
     setLoading(true);
     try {
-      // اطمینان: دوباره نرمال کنیم
       const fixed = normalizeDigits(code);
       const { signup_token } = await signupVerify(otp_id, fixed);
       setMsg("کد تایید شد ✅");
-      // اینجا می‌تونی هدایت به مرحله بعدی رو انجام بدی:
       navigation.navigate("Signup", { signup_token });
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "خطا در تایید کد");
@@ -73,7 +72,7 @@ export default function OtpScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#2C2727" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -85,7 +84,7 @@ export default function OtpScreen({ route, navigation }) {
             logo={styles1.logo1}
             text={styles1.text1}
           />
-          {/* ⚠️ اون {" "} حذف شد */}
+
           <Text style={styles.label}>کد تایید:</Text>
 
           <Pressable
@@ -127,20 +126,24 @@ export default function OtpScreen({ route, navigation }) {
           title={loading ? "در حال تایید..." : "تایید"}
           disabled={!isComplete || loading}
           onPress={handleSubmit}
-          style={styles.cta}
-          textColor={isComplete && !loading ? "#F6F4F4" : "#2C2727"}
+          style={[
+            styles.cta,
+            {
+              backgroundColor:
+                isComplete && !loading ? COLORS.primary : COLORS.disabled,
+            },
+          ]}
+          textColor={isComplete && !loading ? COLORS.onPrimary : COLORS.text}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const ORANGE = "#FF7A1A";
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#2C2727",
+    backgroundColor: COLORS.bg,
     paddingHorizontal: ms(24),
     paddingTop: ms(72),
     justifyContent: "space-between",
@@ -151,9 +154,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: ms(20),
     lineHeight: ms(20),
-    color: "#FFFFFF",
+    color: COLORS.onPrimary,
     marginTop: ms(100),
-    marginBottom: ms(30), // کمی کمتر تا msg جا بشه
+    marginBottom: ms(30),
     alignSelf: "center",
   },
   row: {
@@ -167,18 +170,18 @@ const styles = StyleSheet.create({
     width: ms(49.37),
     height: ms(49.37),
     borderRadius: ms(12),
-    backgroundColor: "#F6F4F4",
+    backgroundColor: COLORS.inputBg, // ← از تم
     borderWidth: ms(2),
     borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },
-  cellActive: { borderColor: ORANGE },
+  cellActive: { borderColor: COLORS.primary }, // ← از تم
   digit: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(22),
     lineHeight: ms(22),
-    color: "#2C2727",
+    color: COLORS.text,
   },
   hiddenInput: { position: "absolute", width: 1, height: 1, opacity: 0 },
   cta: {
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   },
   msg: {
     marginTop: ms(16),
-    color: "#fff",
+    color: COLORS.onPrimary,
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
   },

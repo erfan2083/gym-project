@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
+import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
@@ -33,6 +34,9 @@ export default function SignupScreen({ route, navigation }) {
   const [focusUser, setFocusUser] = useState(false);
   const [focusPass, setFocusPass] = useState(false);
   const [focusRe, setFocusRe] = useState(false);
+
+  const [showPass, setShowPass] = useState(false);
+  const [showRe, setShowRe] = useState(false);
 
   const passRef = useRef(null);
   const repassRef = useRef(null);
@@ -156,23 +160,39 @@ export default function SignupScreen({ route, navigation }) {
               visible={focusPass || pass.length > 0}
               title="رمز عبور:"
             />
-            <CustomInput
-              ref={passRef}
-              value={pass}
-              onChangeText={setPass}
-              placeholder={focusPass ? "" : ":رمز عبور"}
-              onFocus={() => setFocusPass(true)}
-              onBlur={() => setFocusPass(false)}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-              onSubmitEditing={() => repassRef.current?.focus()}
-              style={[
-                styles.input,
-                { textAlign: "right", writingDirection: "rtl" },
-              ]}
-            />
+            <View style={styles.inputWrap}>
+              <CustomInput
+                ref={passRef}
+                value={pass}
+                onChangeText={setPass}
+                placeholder={focusPass ? "" : ":رمز عبور"}
+                onFocus={() => setFocusPass(true)}
+                onBlur={() => setFocusPass(false)}
+                secureTextEntry={!showPass}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => repassRef.current?.focus()}
+                style={[
+                  styles.inputWithIcon,
+                  // ✅ خالی و بدون فوکوس: placeholder راست/RTL
+                  pass.length === 0 && !focusPass
+                    ? { textAlign: "right", writingDirection: "rtl" }
+                    : { textAlign: "left", writingDirection: "ltr" }, // ✅ متن LTR
+                ]}
+              />
+              <Pressable
+                onPress={() => setShowPass((s) => !s)}
+                hitSlop={10}
+                style={styles.eyeBtn}
+              >
+                <Ionicons
+                  name={showPass ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color={COLORS.text}
+                />
+              </Pressable>
+            </View>
           </View>
 
           {/* تکرار رمز عبور */}
@@ -181,24 +201,40 @@ export default function SignupScreen({ route, navigation }) {
               visible={focusRe || repass.length > 0}
               title="تکرار رمز عبور:"
             />
-            <CustomInput
-              ref={repassRef}
-              value={repass}
-              onChangeText={setRepass}
-              placeholder={focusRe ? "" : ":تکرار رمز عبور"}
-              onFocus={() => setFocusRe(true)}
-              onBlur={() => setFocusRe(false)}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="done"
-              onSubmitEditing={onSubmit}
-              style={[
-                styles.input,
-                styles.lastInput,
-                { textAlign: "right", writingDirection: "rtl" },
-              ]}
-            />
+            <View style={styles.inputWrap}>
+              <CustomInput
+                ref={repassRef}
+                value={repass}
+                onChangeText={setRepass}
+                placeholder={focusRe ? "" : ":تکرار رمز عبور"}
+                onFocus={() => setFocusRe(true)}
+                onBlur={() => setFocusRe(false)}
+                secureTextEntry={!showRe}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={onSubmit}
+                style={[
+                  styles.inputWithIcon,
+                  styles.lastInput,
+                  // ✅ خالی و بدون فوکوس: placeholder راست/RTL
+                  repass.length === 0 && !focusRe
+                    ? { textAlign: "right", writingDirection: "rtl" }
+                    : { textAlign: "left", writingDirection: "ltr" }, // ✅ متن LTR
+                ]}
+              />
+              <Pressable
+                onPress={() => setShowRe((s) => !s)}
+                hitSlop={10}
+                style={styles.eyeBtn}
+              >
+                <Ionicons
+                  name={showRe ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color={COLORS.text}
+                />
+              </Pressable>
+            </View>
           </View>
 
           {!!msg && (
@@ -246,9 +282,10 @@ const styles = StyleSheet.create({
   },
   roleRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    gap: ms(38),
     marginTop: ms(36),
-    marginBottom: ms(46),
+    marginBottom: ms(76),
   },
   roleBtn: {
     width: ms(147),
@@ -267,7 +304,7 @@ const styles = StyleSheet.create({
   roleTxtActive: { color: COLORS.inputBg },
   roleTxtIdle: { color: COLORS.text },
   form: { marginTop: ms(8) },
-  block: { marginBottom: ms(24) },
+  block: { marginBottom: ms(34) },
   floatingLabel: {
     alignSelf: "flex-end",
     marginRight: ms(10),
@@ -285,8 +322,33 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
   },
+  inputWithIcon: {
+    width: ms(320),
+    height: ms(55),
+    borderRadius: ms(30),
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: COLORS.inputBg,
+    paddingLeft: ms(56),
+    paddingRight: ms(20),
+  },
+  inputWrap: {
+    position: "relative",
+    width: ms(320),
+    height: ms(55),
+  },
+  eyeBtn: {
+    position: "absolute",
+    left: ms(12),
+    top: "50%",
+    transform: [{ translateY: -14 }],
+    height: ms(28),
+    width: ms(28),
+    alignItems: "center",
+    justifyContent: "center",
+  },
   lastInput: { marginBottom: ms(12) },
-  footerSpacer: { height: ms(24) },
+  footerSpacer: { height: ms(64) },
   cta: {
     width: ms(320),
     height: ms(55),

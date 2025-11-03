@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
+import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
@@ -35,15 +36,16 @@ export default function LoginScreen({ navigation }) {
   const [pass, setPass] = useState("");
   const [fPhone, setFPhone] = useState(false);
   const [fPass, setFPass] = useState(false);
+  const [showPass, setShowPass] = useState(false); // چشم
 
-  // قوانین: 11 رقم و شروع با 09 + پسورد غیرخالی
+  // 11 رقم و شروع با 09 + پسورد غیرخالی
   const { phoneOk, valid } = useMemo(() => {
     const p = normalizeDigits(phone);
     const ok = p.length === 11 && p.startsWith("09");
     return { phoneOk: ok, valid: ok && pass.length > 0 };
   }, [phone, pass]);
 
-  // انیمیشن نرم (مثل قبل)
+  // انیمیشن نرم هنگام تغییر حالت دکمه
   useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -61,11 +63,11 @@ export default function LoginScreen({ navigation }) {
   };
 
   const onSignup = () => {
-    navigation.navigate("Signup");
+    navigation.navigate("Phone");
   };
 
   const onForgot = () => {
-    navigation.navigate("ForgotPassword", { phone: normalizeDigits(phone) });
+    navigation.navigate("ResetPas", { phone: normalizeDigits(phone) });
   };
 
   const showSignup = !valid;
@@ -120,31 +122,46 @@ export default function LoginScreen({ navigation }) {
             />
           </View>
 
-          {/* پسورد */}
+          {/* پسورد + آیکون چشم (مثل ResetPassword) */}
           <View style={styles.block}>
             <FloatLabel visible={fPass || pass.length > 0} title="رمز عبور:" />
-            <CustomInput
-              value={pass}
-              onChangeText={setPass}
-              placeholder={fPass ? "" : ":رمز عبور"}
-              secureTextEntry
-              onFocus={() => setFPass(true)}
-              onBlur={() => setFPass(false)}
-              style={[
-                styles.input,
-                pass.length === 0 && !fPass
-                  ? { textAlign: "right", writingDirection: "rtl" }
-                  : { textAlign: "left", writingDirection: "ltr" },
-              ]}
-              returnKeyType="done"
-              onSubmitEditing={onLogin}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <View style={styles.inputWrap}>
+              <CustomInput
+                value={pass}
+                onChangeText={setPass}
+                placeholder={fPass ? "" : ":رمز عبور"}
+                secureTextEntry={!showPass}
+                onFocus={() => setFPass(true)}
+                onBlur={() => setFPass(false)}
+                style={[
+                  styles.inputWithIcon, // پدینگ امن برای عدم اورلپ
+                  pass.length === 0 && !fPass
+                    ? { textAlign: "right", writingDirection: "rtl" }
+                    : { textAlign: "left", writingDirection: "ltr" },
+                ]}
+                returnKeyType="done"
+                onSubmitEditing={onLogin}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                onPress={() => setShowPass((s) => !s)}
+                hitSlop={10}
+                style={styles.eyeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={showPass ? "پنهان کردن رمز" : "نمایش رمز"}
+              >
+                <Ionicons
+                  name={showPass ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color={COLORS.text}
+                />
+              </Pressable>
+            </View>
 
             <Pressable onPress={onForgot} hitSlop={8}>
               <Text style={styles.forgot}>
-                رمز عبور خود را فراموش کرده اید؟{" "}
+                رمز عبور خود را فراموش کرده اید؟
               </Text>
             </Pressable>
 
@@ -180,7 +197,6 @@ export default function LoginScreen({ navigation }) {
               >
                 حساب کاربری ندارید؟
               </Text>
-
               <PrimaryButton
                 title="عضویت"
                 onPress={onSignup}
@@ -229,6 +245,32 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
     backgroundColor: COLORS.inputBg,
+  },
+  // ورودی رمز با فضای امن برای آیکون سمت چپ (RTL)
+  inputWithIcon: {
+    width: ms(320),
+    height: ms(55),
+    borderRadius: ms(30),
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: COLORS.inputBg,
+    paddingLeft: ms(56), // فضای کافی تا متن زیر آیکون نرود
+    paddingRight: ms(20),
+  },
+  inputWrap: {
+    position: "relative",
+    width: ms(320),
+    height: ms(55),
+  },
+  eyeBtn: {
+    position: "absolute",
+    left: ms(12), // چون ورودی RTL است، آیکون سمت چپ
+    top: "50%",
+    transform: [{ translateY: -14 }],
+    height: ms(28),
+    width: ms(28),
+    alignItems: "center",
+    justifyContent: "center",
   },
   inputFirst: { marginBottom: ms(25) },
   errorBorder: { borderColor: COLORS.danger },

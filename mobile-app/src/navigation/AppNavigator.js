@@ -14,11 +14,14 @@ const Stack = createNativeStackNavigator();
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Phone" component={PhoneNumberScreen} />
-        <Stack.Screen name="Otp" component={OtpScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName="Login"
+      >
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Phone" component={PhoneNumberScreen} />
+        <Stack.Screen name="Signup" component={SignupScreen} />
+        <Stack.Screen name="Otp" component={OtpScreen} />
         <Stack.Screen name="ResetPas" component={ResetPasswordScreen} />
       </Stack.Navigator>
     </NavigationContainer>

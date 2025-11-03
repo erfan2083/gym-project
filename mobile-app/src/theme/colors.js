@@ -8,6 +8,7 @@ export const COLORS = {
   inputBg: "#F6F4F4",
   border: "rgba(0,0,0,0.12)",
   danger: "#FF6B6B",
+  borderError: "#FF4D4F",
   disabled: "#B2B2B2",
   label: "#FF7517",
   onPrimary: "#F6F4F4",
