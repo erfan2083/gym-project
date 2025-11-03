@@ -4,7 +4,10 @@ import {
   signupStart,
   signupVerify,
   signupComplete,
-  login
+  login,
+  forgotPasswordStart,
+  forgotPasswordVerify,
+  forgotPasswordComplete,
 } from '../controllers/authController.js';
 
 const router = express.Router();
@@ -13,5 +16,9 @@ router.post('/signup/start', signupStart);
 router.post('/signup/verify', signupVerify);
 router.post('/signup/complete', signupComplete);
 router.post('/login', login);
+
+router.post('/password/forgot/start', forgotPasswordStart);
+router.post('/password/forgot/verify', forgotPasswordVerify);
+router.post('/password/forgot/complete', forgotPasswordComplete);
 
 export default router;

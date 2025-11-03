@@ -183,3 +183,115 @@ export async function login(req, res) {
     return res.status(500).json({ message: 'Server error', detail: err.message });
   }
 }
+
+
+export async function forgotPasswordStart(req, res) {
+  try {
+    let { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: 'phone is required' });
+
+    phone = normalizePhone(phone);
+
+    // وجود کاربر
+    const u = await pool.query(
+      'SELECT id FROM "gym-project"."User" WHERE phone_number = $1 LIMIT 1',
+      [phone]
+    );
+    if (u.rowCount === 0) {
+      // سیاست شما گفت: اگر نبود، خطا بده
+      return res.status(404).json({ message: 'اکانتی با این شماره وجود ندارد' });
+    }
+    const userId = u.rows[0].id;
+
+    // ساخت کد و هش (مثل ثبت‌نام)
+    const code = generateOtpCode();     // مثلا "03452"
+    const codeHash = hashOtpCode(code); // HMAC-SHA256
+
+    const ttlSeconds = 180; // 3 دقیقه یا هرچی خواستی
+
+    // ساخت OTP با purpose='reset'
+    await pool.query(
+      'CALL "gym-project".request_otp($1,$2,$3,$4,$5,$6)',
+      [phone, 'reset', codeHash, ttlSeconds, userId, null] // null برای OUT placeholder
+    );
+
+    // دریافت id آخرین OTP فعال همین شماره/هدف
+    const q = await pool.query(
+      `SELECT id FROM "gym-project".otp_code
+       WHERE phone_number=$1 AND purpose='reset' AND consumed=false AND verified=false
+       ORDER BY id DESC LIMIT 1`,
+      [phone]
+    );
+    const otp_id = q.rows[0]?.id;
+    if (!otp_id) return res.status(500).json({ message: 'OTP creation failed' });
+
+    // پیامک
+    await sendOtpSms({ receptor: phone, token: code });
+
+    return res.json({ otp_id });
+  } catch (err) {
+    console.error('[forgotPasswordStart]', err);
+    return res.status(500).json({ message: 'Server error', detail: err.message });
+  }
+}
+
+
+// POST api/auth/password/forgot/verify   { otp_id, code }
+export async function forgotPasswordVerify(req, res) {
+  try {
+    const { otp_id, code } = req.body;
+    if (!otp_id || !code) {
+      return res.status(400).json({ message: 'otp_id and code are required' });
+    }
+
+    const codeHash = hashOtpCode(code);
+
+    await pool.query(
+      'CALL "gym-project".verify_otp($1,$2,$3,$4)',
+      [otp_id, codeHash, null, null]
+    );
+
+    const row = await pool.query(
+      `SELECT verified, server_token FROM "gym-project".otp_code WHERE id=$1`,
+      [otp_id]
+    );
+    const verified = row.rows[0]?.verified;
+    const reset_token = row.rows[0]?.server_token;
+
+    if (!verified || !reset_token) {
+      return res.status(401).json({ message: 'Invalid code' });
+    }
+
+    return res.json({ reset_token });
+  } catch (err) {
+    console.error('[forgotPasswordVerify]', err);
+    return res.status(400).json({ message: 'Verification failed', detail: err.message });
+  }
+}
+
+
+// POST api/auth/password/forgot/complete   { reset_token, password }
+export async function forgotPasswordComplete(req, res) {
+  try {
+    const { reset_token, password } = req.body;
+    if (!reset_token || !password) {
+      return res.status(400).json({ message: 'reset_token and password are required' });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await pool.query(
+      'CALL "gym-project".complete_password_reset_with_token($1,$2,$3)',
+      [reset_token, hash, null] // null برای OUT
+    );
+
+    return res.json({ message: 'رمز عبور با موفقیت تغییر کرد' });
+  } catch (err) {
+    const s = String(err?.message || '');
+    if (s.includes('Invalid or expired reset token')) {
+      return res.status(400).json({ message: 'توکن نامعتبر یا منقضی است' });
+    }
+    console.error('[forgotPasswordComplete]', err);
+    return res.status(500).json({ message: 'Server error', detail: err.message });
+  }
+}
