@@ -1,17 +1,16 @@
-import React, { useMemo, useState, useEffect } from "react";
+// src/screens/auth/ResetPasswordScreen.js
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
-  LayoutAnimation,
-  UIManager,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons"; // Expo: آماده است
 import { COLORS } from "../../theme/colors";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
@@ -21,67 +20,35 @@ import PrimaryButton from "../../components/ui/PrimaryButton";
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
-const normalizeDigits = (t) => {
-  const fa = "۰۱۲۳۴۵۶۷۸۹";
-  const ar = "٠١٢٣٤٥٦٧٨٩";
-  return String(t || "")
-    .replace(/[۰-۹]/g, (c) => String(fa.indexOf(c)))
-    .replace(/[٠-٩]/g, (c) => String(ar.indexOf(c)))
-    .replace(/\D/g, "");
-};
-
-export default function LoginScreen({ navigation }) {
-  const [phone, setPhone] = useState("");
+export default function ResetPasswordScreen({ navigation }) {
   const [pass, setPass] = useState("");
-  const [fPhone, setFPhone] = useState(false);
-  const [fPass, setFPass] = useState(false);
-  const [showPass, setShowPass] = useState(false); // چشم
+  const [repass, setRepass] = useState("");
+  const [f1, setF1] = useState(false);
+  const [f2, setF2] = useState(false);
+  const [show1, setShow1] = useState(false); // 👈 نمایش/مخفی فیلد 1
+  const [show2, setShow2] = useState(false); // 👈 نمایش/مخفی فیلد 2
+  const repassRef = useRef(null);
 
-  // 11 رقم و شروع با 09 + پسورد غیرخالی
-  const { phoneOk, valid } = useMemo(() => {
-    const p = normalizeDigits(phone);
-    const ok = p.length === 11 && p.startsWith("09");
-    return { phoneOk: ok, valid: ok && pass.length > 0 };
-  }, [phone, pass]);
+  const valid = useMemo(
+    () => pass.length > 0 && repass.length > 0 && pass === repass,
+    [pass, repass]
+  );
+  const mismatch = useMemo(
+    () => pass.length > 0 && repass.length > 0 && pass !== repass,
+    [pass, repass]
+  );
 
-  // انیمیشن نرم هنگام تغییر حالت دکمه
-  useEffect(() => {
-    if (
-      Platform.OS === "android" &&
-      UIManager?.setLayoutAnimationEnabledExperimental
-    ) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [valid]);
-
-  const onLogin = () => {
+  const onSubmit = async () => {
     if (!valid) return;
-    console.log("login:", normalizeDigits(phone), pass);
-    // navigation.replace("Home");
+    // await resetPassword({ password: pass });
+    navigation.replace("Login");
   };
-
-  const onSignup = () => {
-    navigation.navigate("Phone");
-  };
-
-  const onForgot = () => {
-    navigation.navigate("ResetPas", { phone: normalizeDigits(phone) });
-  };
-
-  const showSignup = !valid;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <KeyboardAwareScrollView
-        style={{ flex: 1, backgroundColor: COLORS.bg }}
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-        enableOnAndroid
-        enableAutomaticScroll
-        extraScrollHeight={24}
-        extraHeight={Platform.OS === "android" ? 60 : 0}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* هدر */}
         <View style={styles.header}>
@@ -91,130 +58,120 @@ export default function LoginScreen({ navigation }) {
             logo={styles1.logo1}
             text={styles1.text1}
           />
-          <Text style={styles.title}>ورود در فیتنس</Text>
+          <Text style={styles.title}>
+            {valid ? "ورود در فیتنس" : "بازیابی رمز عبور"}
+          </Text>
         </View>
 
         {/* فرم */}
-        <View style={{ marginTop: ms(8) }}>
-          {/* تلفن */}
+        <View style={{ marginTop: ms(25) }}>
+          {/* رمز جدید */}
           <View style={styles.block}>
             <FloatLabel
-              visible={fPhone || phone.length > 0}
-              title="شماره تلفن:"
+              visible={f1 || pass.length > 0}
+              title="رمز عبور جدید:"
             />
-            <CustomInput
-              value={phone}
-              onChangeText={(t) => setPhone(normalizeDigits(t).slice(0, 11))}
-              placeholder={fPhone ? "" : "شماره تلفن:"}
-              keyboardType={Platform.OS === "ios" ? "number-pad" : "numeric"}
-              inputMode="numeric"
-              onFocus={() => setFPhone(true)}
-              onBlur={() => setFPhone(false)}
-              style={[
-                styles.input,
-                styles.inputFirst,
-                phone.length === 0 && !fPhone
-                  ? { textAlign: "right", writingDirection: "rtl" }
-                  : { textAlign: "left", writingDirection: "ltr" },
-                !phoneOk && phone.length > 0 ? styles.errorBorder : null,
-              ]}
-            />
-          </View>
-
-          {/* پسورد + آیکون چشم (مثل ResetPassword) */}
-          <View style={styles.block}>
-            <FloatLabel visible={fPass || pass.length > 0} title="رمز عبور:" />
             <View style={styles.inputWrap}>
               <CustomInput
                 value={pass}
                 onChangeText={setPass}
-                placeholder={fPass ? "" : ":رمز عبور"}
-                secureTextEntry={!showPass}
-                onFocus={() => setFPass(true)}
-                onBlur={() => setFPass(false)}
-                style={[
-                  styles.inputWithIcon, // پدینگ امن برای عدم اورلپ
-                  pass.length === 0 && !fPass
-                    ? { textAlign: "right", writingDirection: "rtl" }
-                    : { textAlign: "left", writingDirection: "ltr" },
-                ]}
-                returnKeyType="done"
-                onSubmitEditing={onLogin}
+                placeholder={f1 ? "" : ":رمز عبور جدید"}
+                onFocus={() => setF1(true)}
+                onBlur={() => setF1(false)}
+                secureTextEntry={!show1}
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => repassRef.current?.focus()}
+                style={[
+                  styles.input,
+                  pass.length === 0 && !f1
+                    ? { textAlign: "right", writingDirection: "rtl" }
+                    : { textAlign: "left", writingDirection: "ltr" },
+                  mismatch && styles.inputError,
+                ]}
               />
               <Pressable
-                onPress={() => setShowPass((s) => !s)}
+                onPress={() => setShow1((s) => !s)}
                 hitSlop={10}
                 style={styles.eyeBtn}
-                accessibilityRole="button"
-                accessibilityLabel={showPass ? "پنهان کردن رمز" : "نمایش رمز"}
               >
                 <Ionicons
-                  name={showPass ? "eye-off-outline" : "eye-outline"}
+                  name={show1 ? "eye-off-outline" : "eye-outline"}
                   size={22}
                   color={COLORS.text}
                 />
               </Pressable>
             </View>
+          </View>
 
-            <Pressable onPress={onForgot} hitSlop={8}>
-              <Text style={styles.forgot}>
-                رمز عبور خود را فراموش کرده اید؟
-              </Text>
-            </Pressable>
-
-            {/* دکمه ورود */}
-            <View style={styles.loginWrap}>
-              <PrimaryButton
-                title="ورود"
-                onPress={onLogin}
-                disabled={!valid}
-                textColor={valid ? COLORS.onPrimary : COLORS.text}
+          {/* تکرار رمز جدید */}
+          <View style={styles.block}>
+            <FloatLabel
+              visible={f2 || repass.length > 0}
+              title="تکرار رمز عبور جدید:"
+            />
+            <View style={styles.inputWrap}>
+              <CustomInput
+                ref={repassRef}
+                value={repass}
+                onChangeText={setRepass}
+                placeholder={f2 ? "" : ":تکرار رمز عبور جدید"}
+                onFocus={() => setF2(true)}
+                onBlur={() => setF2(false)}
+                secureTextEntry={!show2}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={onSubmit}
                 style={[
-                  styles.loginBtn,
-                  { backgroundColor: valid ? COLORS.primary : COLORS.disabled },
-                  !valid ? styles.loginBtnDisabled : null,
+                  styles.input,
+                  repass.length === 0 && !f2
+                    ? { textAlign: "right", writingDirection: "rtl" }
+                    : { textAlign: "left", writingDirection: "ltr" },
+                  mismatch && styles.inputError,
                 ]}
               />
+              <Pressable
+                onPress={() => setShow2((s) => !s)}
+                hitSlop={10}
+                style={styles.eyeBtn}
+              >
+                <Ionicons
+                  name={show2 ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color={COLORS.text}
+                />
+              </Pressable>
             </View>
           </View>
 
-          {/* فقط وقتی نامعتبر است، گزینه عضویت را نشان بده */}
-          {showSignup && (
-            <View style={{ marginTop: ms(60) }}>
-              <Text
-                style={{
-                  alignSelf: "flex-end",
-                  marginRight: ms(13),
-                  marginBottom: ms(19),
-                  color: COLORS.primary,
-                  fontFamily: "Vazirmatn_400Regular",
-                  fontSize: ms(15),
-                  lineHeight: ms(16),
-                }}
-              >
-                حساب کاربری ندارید؟
-              </Text>
-              <PrimaryButton
-                title="عضویت"
-                onPress={onSignup}
-                textColor={COLORS.text}
-                style={[styles.signupBtn, { backgroundColor: COLORS.primary }]}
-              />
-            </View>
+          {/* خطای عدم تطابق */}
+          {mismatch && (
+            <Text style={styles.errorText}>رمز ها یکسان نیستند!</Text>
           )}
-
-          {/* فاصلهٔ انتهایی */}
-          <View style={{ height: ms(24) }} />
         </View>
-      </KeyboardAwareScrollView>
+
+        {/* CTA */}
+        <PrimaryButton
+          title="تایید"
+          onPress={onSubmit}
+          disabled={!valid}
+          textColor={valid ? COLORS.onPrimary : COLORS.text}
+          style={[
+            styles.cta,
+            { backgroundColor: valid ? COLORS.primary : COLORS.disabled },
+          ]}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
     paddingHorizontal: ms(30),
     paddingTop: ms(48),
     paddingBottom: ms(32),
@@ -226,6 +183,7 @@ const styles = StyleSheet.create({
     fontSize: ms(20),
     marginTop: ms(38),
     marginBottom: ms(50),
+    lineHeight: ms(20),
   },
   block: { marginBottom: ms(20) },
   floatingLabel: {
@@ -233,71 +191,52 @@ const styles = StyleSheet.create({
     marginRight: ms(10),
     marginBottom: ms(6),
     color: COLORS.primary,
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(17),
     lineHeight: ms(18),
-  },
-  input: {
-    width: ms(320),
-    height: ms(55),
-    borderRadius: ms(30),
-    borderWidth: 2,
-    borderColor: "transparent",
-    backgroundColor: COLORS.inputBg,
-  },
-  // ورودی رمز با فضای امن برای آیکون سمت چپ (RTL)
-  inputWithIcon: {
-    width: ms(320),
-    height: ms(55),
-    borderRadius: ms(30),
-    borderWidth: 2,
-    borderColor: "transparent",
-    backgroundColor: COLORS.inputBg,
-    paddingLeft: ms(56), // فضای کافی تا متن زیر آیکون نرود
-    paddingRight: ms(20),
   },
   inputWrap: {
     position: "relative",
     width: ms(320),
     height: ms(55),
   },
+  input: {
+    width: "100%",
+    height: "100%",
+    borderRadius: ms(30),
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: COLORS.inputBg,
+    paddingRight: ms(16),
+    paddingLeft: ms(49),
+  },
   eyeBtn: {
     position: "absolute",
-    left: ms(12), // چون ورودی RTL است، آیکون سمت چپ
+    left: ms(19),
     top: "50%",
-    transform: [{ translateY: -14 }],
-    height: ms(28),
-    width: ms(28),
+    transform: [{ translateY: -11 }],
+    height: ms(22),
+    width: ms(22),
     alignItems: "center",
     justifyContent: "center",
   },
-  inputFirst: { marginBottom: ms(25) },
-  errorBorder: { borderColor: COLORS.danger },
-  forgot: {
+  inputError: {
+    borderColor: COLORS.danger,
+  },
+  errorText: {
     alignSelf: "flex-end",
     marginRight: ms(10),
-    marginTop: ms(18),
-    marginBottom: ms(38),
-    color: COLORS.primary,
-    fontFamily: "Vazirmatn_400Regular",
+    marginTop: ms(6),
+    color: COLORS.danger,
+    fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
     lineHeight: ms(16),
   },
-  loginBtn: {
-    width: "100%",
-    height: ms(55),
-    borderRadius: ms(30),
-    alignSelf: "center",
-    justifyContent: "center",
-  },
-  loginBtnDisabled: { backgroundColor: COLORS.disabled },
-  signupBtn: {
+  cta: {
     width: ms(320),
     height: ms(55),
     borderRadius: ms(30),
     alignSelf: "center",
-  },
-  loginWrap: {
-    marginTop: ms(10),
+    marginTop: ms(234),
   },
 });
