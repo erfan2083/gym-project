@@ -29,6 +29,21 @@ export async function login({ phone, password }) {
   return { token, user };
 }
 
+export async function resetStart(phone) {
+  const { data } = await api.post('api/auth/password/forgot/start', { phone });
+  return data; // { otp_id }
+}
+
+export async function resetVerify(otp_id, code) {
+  const { data } = await api.post('api/auth/password/forgot/verify', { otp_id, code });
+  return data; // { reset_token }
+}
+
+export async function resetComplete({ reset_token, password }) {
+  const { data } = await api.post('api/auth/password/forgot/complete', { reset_token, password });
+  return data; // { message }
+}
+
 export async function logout() {
   await AsyncStorage.removeItem('token');
 }

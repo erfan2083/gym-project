@@ -1,3 +1,4 @@
+// src/screens/auth/OtpScreen.js
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
@@ -14,7 +15,7 @@ import PrimaryButton from "../../components/ui/PrimaryButton";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import { COLORS } from "../../theme/colors";
-import { signupVerify } from "../../../api/auth";
+import { signupVerify, resetVerify } from "../../../api/auth";
 
 const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 const toFa = (s) => String(s || "").replace(/\d/g, (d) => FA[+d]);
@@ -26,6 +27,7 @@ const normalizeDigits = (t) =>
 
 export default function OtpScreen({ route, navigation }) {
   const otp_id = route?.params?.otp_id || "";
+  const purpose = route?.params?.purpose || "signup"; // 'signup' یا 'reset'
 
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
@@ -60,9 +62,19 @@ export default function OtpScreen({ route, navigation }) {
     setLoading(true);
     try {
       const fixed = normalizeDigits(code);
-      const { signup_token } = await signupVerify(otp_id, fixed);
-      setMsg("کد تایید شد ✅");
-      navigation.navigate("Signup", { signup_token });
+
+      if (purpose === "reset") {
+        // جریان فراموشی رمز
+        const { reset_token } = await resetVerify(otp_id, fixed);
+        setMsg("کد تایید شد ✅");
+        // به صفحهٔ تغییر رمز می‌رویم
+        navigation.replace("ResetPassword", { reset_token });
+      } else {
+        // جریان ثبت‌نام (همان رفتار قبلی)
+        const { signup_token } = await signupVerify(otp_id, fixed);
+        setMsg("کد تایید شد ✅");
+        navigation.navigate("Signup", { signup_token });
+      }
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "خطا در تایید کد");
     } finally {

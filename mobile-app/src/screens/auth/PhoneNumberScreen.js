@@ -1,3 +1,4 @@
+// src/screens/auth/PhoneNumberScreen.js
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -16,15 +17,18 @@ import PhoneSubmit from "../../components/PhoneSubmit";
 import {
   validatePhone,
   normalizeDigits,
-  formatIranMobile, // ← اضافه شد
+  formatIranMobile,
 } from "../../../utils/phone";
-import { signupStart } from "../../../api/auth";
+import { signupStart, resetStart } from "../../../api/auth";
 
-export default function PhoneNumberScreen({ navigation }) {
+export default function PhoneNumberScreen({ route, navigation }) {
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+
+  // purpose می‌تواند 'signup' یا 'reset' باشد؛ پیش‌فرض signup
+  const purpose = route?.params?.purpose || "signup";
 
   const { valid, errors } = useMemo(() => validatePhone(value), [value]);
   const showError = touched && errors.length > 0;
@@ -37,8 +41,15 @@ export default function PhoneNumberScreen({ navigation }) {
     const phone = normalizeDigits(value);
 
     try {
-      const { otp_id } = await signupStart(phone);
-      navigation.navigate("Otp", { otp_id });
+      if (purpose === "reset") {
+        // فراموشی رمز
+        const { otp_id } = await resetStart(phone);
+        navigation.navigate("Otp", { otp_id, purpose: "reset" });
+      } else {
+        // ثبت‌نام معمولی
+        const { otp_id } = await signupStart(phone);
+        navigation.navigate("Otp", { otp_id, purpose: "signup" });
+      }
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "خطا در ارسال کد");
     } finally {
@@ -79,6 +90,8 @@ export default function PhoneNumberScreen({ navigation }) {
             disabled={!valid || loading}
             onPress={onSubmit}
             loading={loading}
+            // متن دکمه را می‌توان بر اساس purpose تغییر داد (اختیاری)
+            title={purpose === "reset" ? "دریافت کد بازیابی" : "دریافت کد"}
           />
         </View>
       </KeyboardAvoidingView>

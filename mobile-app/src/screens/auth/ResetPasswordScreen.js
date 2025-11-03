@@ -16,17 +16,22 @@ import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
+import { resetComplete } from "../../../api/auth"; // ← اضافه شد
 
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
-export default function ResetPasswordScreen({ navigation }) {
+export default function ResetPasswordScreen({ route, navigation }) {
+  const reset_token = route?.params?.reset_token || ""; // ← از OTP Screen می‌آید
+
   const [pass, setPass] = useState("");
   const [repass, setRepass] = useState("");
   const [f1, setF1] = useState(false);
   const [f2, setF2] = useState(false);
-  const [show1, setShow1] = useState(false); // 👈 نمایش/مخفی فیلد 1
-  const [show2, setShow2] = useState(false); // 👈 نمایش/مخفی فیلد 2
+  const [show1, setShow1] = useState(false); // نمایش/مخفی فیلد 1
+  const [show2, setShow2] = useState(false); // نمایش/مخفی فیلد 2
+  const [loading, setLoading] = useState(false);      // ← اضافه شد
+  const [msg, setMsg] = useState("");                 // ← اضافه شد
   const repassRef = useRef(null);
 
   const valid = useMemo(
@@ -39,9 +44,19 @@ export default function ResetPasswordScreen({ navigation }) {
   );
 
   const onSubmit = async () => {
-    if (!valid) return;
-    // await resetPassword({ password: pass });
-    navigation.replace("Login");
+    if (!valid || loading) return;
+    setMsg("");
+    setLoading(true);
+    try {
+      await resetComplete({ reset_token, password: pass });
+      // پیام موفقیت اختیاری
+      // setMsg("رمز عبور با موفقیت تغییر کرد");
+      navigation.replace("Login");
+    } catch (e) {
+      setMsg(e?.response?.data?.message || e.message || "خطا در تغییر رمز");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -75,7 +90,7 @@ export default function ResetPasswordScreen({ navigation }) {
               <CustomInput
                 value={pass}
                 onChangeText={setPass}
-                placeholder={f1 ? "" : ":رمز عبور جدید"}
+                placeholder={f1 ? "" : "رمز عبور جدید:"}
                 onFocus={() => setF1(true)}
                 onBlur={() => setF1(false)}
                 secureTextEntry={!show1}
@@ -116,7 +131,7 @@ export default function ResetPasswordScreen({ navigation }) {
                 ref={repassRef}
                 value={repass}
                 onChangeText={setRepass}
-                placeholder={f2 ? "" : ":تکرار رمز عبور جدید"}
+                placeholder={f2 ? "" : "تکرار رمز عبور جدید:"}
                 onFocus={() => setF2(true)}
                 onBlur={() => setF2(false)}
                 secureTextEntry={!show2}
@@ -146,21 +161,23 @@ export default function ResetPasswordScreen({ navigation }) {
             </View>
           </View>
 
-          {/* خطای عدم تطابق */}
-          {mismatch && (
+          {/* خطای عدم تطابق / پیام سرور */}
+          {mismatch ? (
             <Text style={styles.errorText}>رمز ها یکسان نیستند!</Text>
-          )}
+          ) : !!msg ? (
+            <Text style={[styles.errorText, { color: COLORS.white }]}>{msg}</Text>
+          ) : null}
         </View>
 
         {/* CTA */}
         <PrimaryButton
-          title="تایید"
+          title={loading ? "در حال ذخیره..." : "تایید"}
           onPress={onSubmit}
-          disabled={!valid}
-          textColor={valid ? COLORS.onPrimary : COLORS.text}
+          disabled={!valid || loading}
+          textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
           style={[
             styles.cta,
-            { backgroundColor: valid ? COLORS.primary : COLORS.disabled },
+            { backgroundColor: valid && !loading ? COLORS.primary : COLORS.disabled },
           ]}
         />
       </KeyboardAvoidingView>

@@ -84,7 +84,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   const onSignup = () => {
-    navigation.navigate("Phone");
+    navigation.navigate("Phone", { purpose: "reset" });
   };
 
   const onForgot = () => {
