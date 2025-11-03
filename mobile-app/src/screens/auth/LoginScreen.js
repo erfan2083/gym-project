@@ -84,11 +84,11 @@ export default function LoginScreen({ navigation }) {
   };
 
   const onSignup = () => {
-    navigation.navigate("Phone", { purpose: "reset" });
+    navigation.navigate("Phone");
   };
 
   const onForgot = () => {
-    navigation.navigate("ResetPas", { phone: phone });
+    navigation.navigate("Phone", { purpose: "reset" });
   };
 
   const showSignup = !valid;

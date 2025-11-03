@@ -68,7 +68,7 @@ export default function OtpScreen({ route, navigation }) {
         const { reset_token } = await resetVerify(otp_id, fixed);
         setMsg("کد تایید شد ✅");
         // به صفحهٔ تغییر رمز می‌رویم
-        navigation.replace("ResetPassword", { reset_token });
+        navigation.replace("ResetPas", { reset_token });
       } else {
         // جریان ثبت‌نام (همان رفتار قبلی)
         const { signup_token } = await signupVerify(otp_id, fixed);
