@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "#F6F4F4",
     paddingHorizontal: ms(16),
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: " Vazirmatn_400Regular",
     fontSize: ms(20),
     lineHeight: ms(20),
     letterSpacing: 0,

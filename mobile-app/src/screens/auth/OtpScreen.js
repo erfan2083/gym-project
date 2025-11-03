@@ -1,16 +1,22 @@
 // src/screens/auth/OtpScreen.js
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
-  View, Text, StyleSheet, KeyboardAvoidingView, Platform, SafeAreaView, Pressable,
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  Pressable,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
-import { signupVerify } from "../../../api/auth";   // ← اضافه شد
+import { signupVerify } from "../../../api/auth"; // ← اضافه شد
 
-const FA = ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"];
+const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 const toFa = (s) => String(s || "").replace(/\d/g, (d) => FA[+d]);
 const normalizeDigits = (t) =>
   String(t || "")
@@ -20,10 +26,11 @@ const normalizeDigits = (t) =>
 
 export default function OtpScreen({ route, navigation }) {
   const otp_id = route?.params?.otp_id || "";
+
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
-  const [loading, setLoading] = useState(false);     // ← اضافه شد
-  const [msg, setMsg] = useState("");                // ← اضافه شد
+  const [loading, setLoading] = useState(false); // ← اضافه شد
+  const [msg, setMsg] = useState(""); // ← اضافه شد
   const inputRef = useRef(null);
   const length = 5;
 
@@ -36,6 +43,13 @@ export default function OtpScreen({ route, navigation }) {
   const activeIndex = Math.min(code.length, length - 1);
   const isComplete = code.length === length;
 
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      const t = setTimeout(() => inputRef.current?.focus(), 150);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   const handleChange = (t) => {
     setCode(normalizeDigits(t).slice(0, length));
   };
@@ -44,7 +58,7 @@ export default function OtpScreen({ route, navigation }) {
     if (!isComplete || loading) return;
     setMsg("");
     setLoading(true);
-    try { 
+    try {
       // اطمینان: دوباره نرمال کنیم
       const fixed = normalizeDigits(code);
       const { signup_token } = await signupVerify(otp_id, fixed);
@@ -74,11 +88,17 @@ export default function OtpScreen({ route, navigation }) {
           {/* ⚠️ اون {" "} حذف شد */}
           <Text style={styles.label}>کد تایید:</Text>
 
-          <Pressable style={styles.row} onPress={() => inputRef.current?.focus()}>
+          <Pressable
+            style={styles.row}
+            onPress={() => inputRef.current?.focus()}
+          >
             {cells.map((d, i) => {
               const active = focused && i === activeIndex;
               return (
-                <View key={i} style={[styles.cell, active && styles.cellActive]}>
+                <View
+                  key={i}
+                  style={[styles.cell, active && styles.cellActive]}
+                >
                   <Text style={styles.digit}>{d ? toFa(d) : ""}</Text>
                 </View>
               );
@@ -160,7 +180,7 @@ const styles = StyleSheet.create({
     lineHeight: ms(22),
     color: "#2C2727",
   },
-  hiddenInput: { position: "absolute", width: 0, height: 0, opacity: 0 },
+  hiddenInput: { position: "absolute", width: 1, height: 1, opacity: 0 },
   cta: {
     width: ms(320),
     height: ms(55),

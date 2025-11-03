@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
     marginRight: ms(10),
     marginBottom: ms(15),
     color: "#FF7A1A",
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: " Vazirmatn_400Regular",
     fontSize: ms(20),
     lineHeight: ms(20),
   },
