@@ -165,7 +165,7 @@ export default function SignupScreen({ route, navigation }) {
                 ref={passRef}
                 value={pass}
                 onChangeText={setPass}
-                placeholder={focusPass ? "" : ":رمز عبور"}
+                placeholder={focusPass ? "" : "رمز عبور:"}
                 onFocus={() => setFocusPass(true)}
                 onBlur={() => setFocusPass(false)}
                 secureTextEntry={!showPass}
@@ -206,7 +206,7 @@ export default function SignupScreen({ route, navigation }) {
                 ref={repassRef}
                 value={repass}
                 onChangeText={setRepass}
-                placeholder={focusRe ? "" : ":تکرار رمز عبور"}
+                placeholder={focusRe ? "" : "تکرار رمز عبور:"}
                 onFocus={() => setFocusRe(true)}
                 onBlur={() => setFocusRe(false)}
                 secureTextEntry={!showRe}
