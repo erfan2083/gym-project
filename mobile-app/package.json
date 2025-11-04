@@ -10,11 +10,28 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/vazirmatn": "^0.4.1",
+    "@react-native-async-storage/async-storage": "2.1.2",
+    "@react-native-picker/picker": "2.11.1",
+    "@react-navigation/native": "^7.1.19",
+    "@react-navigation/native-stack": "^7.6.1",
+    "AsyncStorage": "^0.1.5",
+    "awesome-phonenumber": "^7.5.0",
     "axios": "^1.11.0",
-    "expo": "~53.0.20",
+    "expo": "~53.0.23",
+    "expo-app-loading": "^2.1.1",
+    "expo-clipboard": "~7.1.5",
+    "expo-font": "~13.3.2",
+    "expo-splash-screen": "~0.30.10",
     "expo-status-bar": "~2.2.3",
+    "libphonenumber-js": "^1.12.25",
     "react": "19.0.0",
-    "react-native": "0.79.5"
+    "react-native": "0.79.6",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-shadow-2": "^7.1.2",
+    "react-native-size-matters": "^0.4.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
