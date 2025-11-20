@@ -1,0 +1,17 @@
+// Backend/routes/trainerRoutes.js
+import express from "express";
+import {
+  listSpecialties,
+  createTrainerProfile,
+} from "../controllers/trainerController.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
+const trainerRouter = express.Router();
+
+// لیست تخصص‌ها (نیاز به لاگین ندارد — می‌تونی اگه خواستی محافظت کنی)
+router.get("/specialties", listSpecialties);
+
+// ساخت پروفایل مربی (فقط کاربر لاگین کرده)
+router.post("/profile", authMiddleware, createTrainerProfile);
+
+export default trainerRouter;
