@@ -1,5 +1,5 @@
 // src/screens/profile/ProfileFormScreen.js
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   ScrollView,
+  Alert,            // ⬅️ اضافه شد
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
@@ -26,6 +27,7 @@ import * as yup from "yup";
 import { COLORS } from "../../theme/colors";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
+import { createTrainerProfile, getSpecialties } from "../../../api/trainer";  // ⬅️ اضافه شد
 
 // ---------- داده‌های ایران (استان / شهر) ----------
 
@@ -195,6 +197,44 @@ export default function ProfileFormScreen() {
 
   const selectedProvinceId = watch("province");
 
+  const [specialtyOptions, setSpecialtyOptions] = useState([
+    { label: "حیطه تخصصی:", value: "" }, // placeholder
+  ]);
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSpecialties = async () => {
+      try {
+        const res = await getSpecialties();
+        // فرض می‌کنیم بک‌اند یه آرایه مثل این برمی‌گردونه:
+        // [{ id: 1, name: "بدنسازی" }, { id: 2, name: "تغذیه" }, ...]
+        const items = (res.data || []).map((s) => ({
+          label: s.name,
+          value: String(s.id),
+        }));
+
+        if (isMounted) {
+          setSpecialtyOptions([
+            { label: "حیطه تخصصی:", value: "" },
+            ...items,
+          ]);
+        }
+      } catch (e) {
+        console.log("Error loading specialties:", e);
+        // اگر خطا شد، همون فقط placeholder می‌مونه
+      }
+    };
+
+    loadSpecialties();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+
   const cityOptions = useMemo(() => {
     if (!selectedProvinceId) return [];
     const arr = CITIES_BY_PROVINCE[selectedProvinceId] || [];
@@ -227,13 +267,59 @@ export default function ProfileFormScreen() {
     }
   };
 
-  const onSubmit = (data) => {
-    const finalData = {
-      ...data,
-      avatarUri,
-      certificateFile,
-    };
-    console.log("PROFILE FORM DATA =>", finalData);
+  // ⚡️ اینجا API صدا زده می‌شود
+  const onSubmit = async (data) => {
+    try {
+      // جنسیت: اگر "other" یا خالی بود، null بفرستیم
+      const gender =
+        !data.gender || data.gender === "other" ? null : data.gender;
+
+      // تاریخ تولد شمسی به صورت "YYYY-MM-DD" (همون جلالی ذخیره می‌شود)
+      let birthDate = null;
+      if (data.birthYear && data.birthMonth && data.birthDay) {
+        const y = String(data.birthYear).padStart(4, "0");
+        const m = String(data.birthMonth).padStart(2, "0");
+        const d = String(data.birthDay).padStart(2, "0");
+        birthDate = `${y}-${m}-${d}`;
+      }
+
+      // استان فارسی (نه id انگلیسی)
+      const provinceFa =
+        PROVINCES.find((p) => p.id === data.province)?.name || "";
+
+      // 🔗 آماده‌سازی payload برای API
+      const payload = {
+        username: data.username.trim(),
+        gender,
+        birthDate,                   // "YYYY-MM-DD" شمسی
+        province: provinceFa || null,
+        city: data.city || null,
+        bio: data.description || null,
+        contactPhone: data.phone || null,
+        telegramUrl: data.telegram || null,
+        instagramUrl: data.instagram || null,
+        // در آینده: می‌تونیم specialtyIds رو از backend بگیریم و اینجا پر کنیم
+        // specialtyIds: [],
+        // این دو فیلد فعلاً به صورت uri / meta ارسال می‌شن؛
+        // آپلود واقعی فایل باید با یک API جدا (multipart) انجام بشه.
+        certificateImageUrl: certificateFile?.uri || null,
+        // اگر خواستی آواتار هم در پروفایل مربی ذخیره شود، می‌تونی
+        // آن را هم به API اضافه کنی (بستگی به backend دارد).
+      };
+
+      const res = await createTrainerProfile(payload);
+      console.log("Trainer profile created =>", res);
+
+      Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅");
+      // اگر خواستی بعدش navigate کنی، اینجا می‌تونی اضافه‌اش کنی.
+    } catch (e) {
+      console.error("Create trainer profile error:", e);
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "خطا در ذخیره پروفایل. لطفاً دوباره تلاش کنید.";
+      Alert.alert("خطا", msg);
+    }
   };
 
   // داده‌های SelectFieldها
@@ -242,14 +328,6 @@ export default function ProfileFormScreen() {
     { label: "زن", value: "female" },
     { label: "مرد", value: "male" },
     { label: "سایر", value: "other" },
-  ];
-
-  const specialtyOptions = [
-    { label: "حیطه تخصصی:", value: "" },
-    { label: "بدنسازی", value: "fitness" },
-    { label: "تغذیه", value: "nutrition" },
-    { label: "یوگا", value: "yoga" },
-    { label: "ورزش‌درمانی", value: "rehab" },
   ];
 
   const provinceOptions = [
@@ -416,7 +494,7 @@ export default function ProfileFormScreen() {
           </View>
         </View>
 
-        {/* حیطه تخصصی */}
+        {/* حیطه تخصصی (فعلاً فقط در فرم؛ اگر خواستی می‌تونیم بعداً به API هم وصلش کنیم) */}
         <View style={styles.field}>
           <Controller
             control={control}
@@ -590,7 +668,7 @@ export default function ProfileFormScreen() {
 
         {/* دکمه ذخیره */}
         <PrimaryButton
-          title="ذخیره"
+          title={isSubmitting ? "در حال ذخیره..." : "ذخیره"}
           onPress={handleSubmit(onSubmit)}
           disabled={isSaveDisabled}
           textColor={isSaveDisabled ? "#2C2727" : COLORS.white}
