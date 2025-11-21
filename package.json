@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@react-native-picker/picker": "^2.11.4",
+    "expo-document-picker": "^14.0.7",
+    "expo-image-picker": "~17.0.8",
+    "react-hook-form": "^7.66.1",
+    "react-native-image-picker": "^8.2.1",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "yup": "^1.7.1"
+  }
+}

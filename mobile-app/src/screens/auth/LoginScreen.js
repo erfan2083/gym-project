@@ -196,8 +196,11 @@ export default function LoginScreen({ navigation }) {
                 textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
                 style={[
                   styles.loginBtn,
-                  { backgroundColor: valid && !loading ? COLORS.primary : COLORS.disabled },
-                  (!valid || loading) ? styles.loginBtnDisabled : null,
+                  {
+                    backgroundColor:
+                      valid && !loading ? COLORS.primary : COLORS.disabled,
+                  },
+                  !valid || loading ? styles.loginBtnDisabled : null,
                 ]}
               />
             </View>
