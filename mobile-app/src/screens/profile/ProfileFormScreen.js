@@ -9,11 +9,11 @@ import {
   Image,
   Modal,
   ScrollView,
-  Alert,            // ⬅️ اضافه شد
+  Platform,
+  Alert,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
-import { launchImageLibrary } from "react-native-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
@@ -27,18 +27,18 @@ import * as yup from "yup";
 import { COLORS } from "../../theme/colors";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
-import { createTrainerProfile, getSpecialties } from "../../../api/trainer";  // ⬅️ اضافه شد
+import { createTrainerProfile, getSpecialties } from "../../../api/trainer";
+import { useProfileStore } from "../../store/profileStore";
 
 // ---------- داده‌های ایران (استان / شهر) ----------
 
-// از JSON همهٔ استان‌ها و شهرها رو می‌سازیم
 const PROVINCES = iranLocations.map((p) => ({
-  id: p["province-en"], // id داخلی (انگلیسی)
-  name: p["province-fa"], // نمایش فارسی
+  id: p["province-en"],
+  name: p["province-fa"],
 }));
 
 const CITIES_BY_PROVINCE = iranLocations.reduce((acc, p) => {
-  const key = p["province-en"]; // همون id بالا
+  const key = p["province-en"];
   acc[key] = (p.cities || []).map((c) => c["city-fa"]);
   return acc;
 }, {});
@@ -73,11 +73,11 @@ const schema = yup.object({
     .max(20, "حداکثر ۲۰ کاراکتر"),
   instagram: yup.string().nullable(),
   telegram: yup.string().nullable(),
-  // فیلد اجباری برای مدرک
   certificate: yup.mixed().required("مدرک مربیگری الزامی است"),
 });
 
-// ---------- SelectField سفارشی به جای Picker ----------
+// ---------- SelectField ----------
+
 function SelectField({
   value,
   onChange,
@@ -144,7 +144,7 @@ function SelectField({
             <Text style={styles.modalTitle}>{placeholder}</Text>
             <ScrollView>
               {options
-                .filter((opt) => opt.value !== "") // ← placeholder ها رو حذف می‌کنیم
+                .filter((opt) => opt.value !== "")
                 .map((opt) => (
                   <Pressable
                     key={opt.value}
@@ -167,6 +167,7 @@ function SelectField({
 export default function ProfileFormScreen() {
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
+  const setProfile = useProfileStore((state) => state.setProfile);
 
   const {
     control,
@@ -188,7 +189,7 @@ export default function ProfileFormScreen() {
       phone: "",
       instagram: "",
       telegram: "",
-      certificate: null, // ← برای yup
+      certificate: null,
     },
     resolver: yupResolver(schema),
     mode: "onChange",
@@ -198,9 +199,8 @@ export default function ProfileFormScreen() {
   const selectedProvinceId = watch("province");
 
   const [specialtyOptions, setSpecialtyOptions] = useState([
-    { label: "حیطه تخصصی:", value: "" }, // placeholder
+    { label: "حیطه تخصصی:", value: "" },
   ]);
-
 
   useEffect(() => {
     let isMounted = true;
@@ -208,22 +208,16 @@ export default function ProfileFormScreen() {
     const loadSpecialties = async () => {
       try {
         const res = await getSpecialties();
-        // فرض می‌کنیم بک‌اند یه آرایه مثل این برمی‌گردونه:
-        // [{ id: 1, name: "بدنسازی" }, { id: 2, name: "تغذیه" }, ...]
         const items = (res.data || []).map((s) => ({
           label: s.name,
           value: String(s.id),
         }));
 
         if (isMounted) {
-          setSpecialtyOptions([
-            { label: "حیطه تخصصی:", value: "" },
-            ...items,
-          ]);
+          setSpecialtyOptions([{ label: "حیطه تخصصی:", value: "" }, ...items]);
         }
       } catch (e) {
         console.log("Error loading specialties:", e);
-        // اگر خطا شد، همون فقط placeholder می‌مونه
       }
     };
 
@@ -234,47 +228,51 @@ export default function ProfileFormScreen() {
     };
   }, []);
 
-
   const cityOptions = useMemo(() => {
     if (!selectedProvinceId) return [];
     const arr = CITIES_BY_PROVINCE[selectedProvinceId] || [];
     return arr.map((c) => ({ label: c, value: c }));
   }, [selectedProvinceId]);
 
-  const pickAvatar = () => {
-    launchImageLibrary(
-      {
-        mediaType: "photo",
-        quality: 0.7,
-      },
-      (res) => {
-        if (res.didCancel || res.errorCode) return;
-        const uri = res.assets?.[0]?.uri;
-        if (uri) setAvatarUri(uri);
+  // آواتار با sheet سیستمی (Camera / Gallery / Files...)
+  const pickAvatar = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/*"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.type === "success") {
+        setAvatarUri(result.uri);
       }
-    );
-  };
-
-  const pickCertificate = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/*", "application/pdf"],
-    });
-
-    if (result.type === "success") {
-      setCertificateFile(result);
-      // مقدار دادن به فیلد فرم برای ولیدیشن
-      setValue("certificate", result, { shouldValidate: true });
+    } catch (e) {
+      console.log("Avatar pick error:", e);
     }
   };
 
-  // ⚡️ اینجا API صدا زده می‌شود
+  const pickCertificate = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/*", "application/pdf"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.type === "success") {
+        setCertificateFile(result);
+        setValue("certificate", result, { shouldValidate: true });
+      }
+    } catch (e) {
+      console.log("Certificate pick error:", e);
+    }
+  };
+
   const onSubmit = async (data) => {
     try {
-      // جنسیت: اگر "other" یا خالی بود، null بفرستیم
       const gender =
         !data.gender || data.gender === "other" ? null : data.gender;
 
-      // تاریخ تولد شمسی به صورت "YYYY-MM-DD" (همون جلالی ذخیره می‌شود)
       let birthDate = null;
       if (data.birthYear && data.birthMonth && data.birthDay) {
         const y = String(data.birthYear).padStart(4, "0");
@@ -283,35 +281,44 @@ export default function ProfileFormScreen() {
         birthDate = `${y}-${m}-${d}`;
       }
 
-      // استان فارسی (نه id انگلیسی)
       const provinceFa =
         PROVINCES.find((p) => p.id === data.province)?.name || "";
 
-      // 🔗 آماده‌سازی payload برای API
       const payload = {
         username: data.username.trim(),
         gender,
-        birthDate,                   // "YYYY-MM-DD" شمسی
+        birthDate,
         province: provinceFa || null,
         city: data.city || null,
         bio: data.description || null,
         contactPhone: data.phone || null,
         telegramUrl: data.telegram || null,
         instagramUrl: data.instagram || null,
-        // در آینده: می‌تونیم specialtyIds رو از backend بگیریم و اینجا پر کنیم
-        // specialtyIds: [],
-        // این دو فیلد فعلاً به صورت uri / meta ارسال می‌شن؛
-        // آپلود واقعی فایل باید با یک API جدا (multipart) انجام بشه.
+        specialtyIds: data.specialty ? [Number(data.specialty)] : [],
         certificateImageUrl: certificateFile?.uri || null,
-        // اگر خواستی آواتار هم در پروفایل مربی ذخیره شود، می‌تونی
-        // آن را هم به API اضافه کنی (بستگی به backend دارد).
       };
 
       const res = await createTrainerProfile(payload);
-      console.log("Trainer profile created =>", res);
+      console.log("Trainer profile created =>", res?.data || res);
+
+      setProfile({
+        username: data.username.trim(),
+        name: data.username.trim(),
+        city: data.city || "",
+        avatarUri: avatarUri || null,
+        specialties: data.specialty
+          ? [
+              specialtyOptions.find((s) => s.value === data.specialty)?.label ||
+                "",
+            ]
+          : [],
+        description: data.description || "",
+        phone: data.phone || "",
+        instagram: data.instagram || "",
+        telegram: data.telegram || "",
+      });
 
       Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅");
-      // اگر خواستی بعدش navigate کنی، اینجا می‌تونی اضافه‌اش کنی.
     } catch (e) {
       console.error("Create trainer profile error:", e);
       const msg =
@@ -322,7 +329,6 @@ export default function ProfileFormScreen() {
     }
   };
 
-  // داده‌های SelectFieldها
   const genderOptions = [
     { label: "جنسیت:", value: "" },
     { label: "زن", value: "female" },
@@ -357,11 +363,15 @@ export default function ProfileFormScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAwareScrollView
-        style={styles.safe}
+        style={{ flex: 1, backgroundColor: COLORS.bg }}
         contentContainerStyle={styles.container}
-        enableOnAndroid
-        extraScrollHeight={ms(40)}
         keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        enableAutomaticScroll
+        keyboardOpeningTime={0}
+        extraScrollHeight={ms(140)}
+        extraHeight={Platform.OS === "android" ? ms(100) : 0}
+        showsVerticalScrollIndicator={false}
       >
         {/* عنوان */}
         <Text style={styles.title}>اطلاعات اولیه</Text>
@@ -494,7 +504,7 @@ export default function ProfileFormScreen() {
           </View>
         </View>
 
-        {/* حیطه تخصصی (فعلاً فقط در فرم؛ اگر خواستی می‌تونیم بعداً به API هم وصلش کنیم) */}
+        {/* حیطه تخصصی */}
         <View style={styles.field}>
           <Controller
             control={control}
@@ -616,7 +626,7 @@ export default function ProfileFormScreen() {
                 value={value}
                 onChangeText={onChange}
                 keyboardType="phone-pad"
-                placeholder="شماره تلفن:"
+                placeholder=":شماره تلفن"
                 inputStyle={styles.inputSmall}
               />
             )}
@@ -666,7 +676,6 @@ export default function ProfileFormScreen() {
           />
         </View>
 
-        {/* دکمه ذخیره */}
         <PrimaryButton
           title={isSubmitting ? "در حال ذخیره..." : "ذخیره"}
           onPress={handleSubmit(onSubmit)}
@@ -689,6 +698,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: ms(30),
     paddingBottom: ms(32),
+    alignItems: "center",
   },
   title: {
     fontSize: ms(20),
@@ -722,6 +732,8 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: ms(16),
+    width: "100%",
+    alignItems: "center",
   },
   label: {
     fontSize: ms(14),
@@ -729,6 +741,7 @@ const styles = StyleSheet.create({
     marginBottom: ms(4),
     textAlign: "right",
     fontFamily: "Vazirmatn_400Regular",
+    alignSelf: "flex-end",
   },
   errorText: {
     fontSize: ms(10),
@@ -736,6 +749,7 @@ const styles = StyleSheet.create({
     marginTop: ms(4),
     textAlign: "right",
     fontFamily: "Vazirmatn_400Regular",
+    alignSelf: "flex-end",
   },
   inputSmall: {
     fontFamily: "Vazirmatn_400Regular",
@@ -748,6 +762,7 @@ const styles = StyleSheet.create({
     height: ms(48),
     justifyContent: "center",
     paddingHorizontal: ms(16),
+    width: ms(320),
   },
   dropdownIcon: {
     position: "absolute",
@@ -781,6 +796,7 @@ const styles = StyleSheet.create({
     height: ms(120),
     borderRadius: ms(12),
     paddingTop: ms(12),
+    width: ms(320),
   },
   textAreaInput: {
     textAlignVertical: "top",
@@ -794,12 +810,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBg2,
     justifyContent: "center",
     alignItems: "center",
-  },
-  uploadPlus: {
-    fontSize: ms(32),
-    marginBottom: ms(4),
-    color: COLORS.text,
-    fontFamily: "Vazirmatn_400Regular",
+    width: ms(320),
   },
   uploadText: {
     fontSize: ms(12),
@@ -809,9 +820,11 @@ const styles = StyleSheet.create({
   sectionLabel: {
     marginTop: ms(8),
     marginBottom: ms(8),
+    alignSelf: "flex-end",
   },
   saveButton: {
     marginTop: ms(8),
+    marginBottom: ms(15),
   },
   modalBackdrop: {
     flex: 1,
@@ -825,35 +838,31 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     maxHeight: ms(400),
-    backgroundColor: COLORS.bg, // پس‌زمینه تیره مثل بقیه صفحه
+    backgroundColor: COLORS.bg,
     borderTopLeftRadius: ms(20),
     borderTopRightRadius: ms(20),
     paddingHorizontal: ms(16),
     paddingTop: ms(12),
     paddingBottom: ms(24),
   },
-
   modalOption: {
     paddingVertical: ms(12),
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border, // خط جداکننده زیر هر آیتم
+    borderBottomColor: COLORS.border,
   },
-
   modalTitle: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
-    color: COLORS.white, // متن روشن روی بک‌گراند تیره
+    color: COLORS.white,
     textAlign: "center",
     marginBottom: ms(12),
   },
-
   modalOptionText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(13),
-    color: COLORS.white, // اینم روشن
+    color: COLORS.white,
     textAlign: "right",
   },
-
   avatarPlus: {
     position: "absolute",
     bottom: ms(-1),
@@ -873,6 +882,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
+    width: ms(320), // ❗ هم‌عرض بقیه فیلدها
   },
 
   birthLabel: {
@@ -891,11 +901,19 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     height: ms(48),
     paddingHorizontal: 0,
-    minWidth: ms(50),
+    minWidth: ms(55),
+    width: "auto", // ❗ مهم: عرض فقط به اندازه متن
     justifyContent: "center",
   },
+
   birthText: {
     fontSize: ms(12),
     textAlignVertical: "center",
+  },
+
+  birthSeparator: {
+    marginHorizontal: ms(4),
+    color: COLORS.text,
+    fontFamily: "Vazirmatn_400Regular",
   },
 });
