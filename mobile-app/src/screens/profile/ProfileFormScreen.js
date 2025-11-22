@@ -195,7 +195,7 @@ const isImageFile = (file) => {
 
 // ---------- صفحه اصلی ----------
 
-export default function ProfileFormScreen() {
+export default function ProfileFormScreen({ navigation }) {
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
   const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
@@ -410,6 +410,7 @@ export default function ProfileFormScreen() {
       const res = await createTrainerProfile(payload);
       console.log("Trainer profile created =>", res?.data || res);
 
+      // پروفایل لوکال برای تب پروفایل
       setProfile({
         username: data.username.trim(),
         name: data.username.trim(),
@@ -425,10 +426,15 @@ export default function ProfileFormScreen() {
         phone: data.phone || "",
         instagram: data.instagram || "",
         telegram: data.telegram || "",
-        certificateImageUrl: certUrl || certificateFile?.uri || null,
       });
 
-      Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅");
+      // ✅ بعد از ذخیره، برو به صفحه امضا
+      Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅", [
+        {
+          text: "ادامه",
+          onPress: () => navigation.replace("Signature"),
+        },
+      ]);
     } catch (e) {
       console.error("Create trainer profile error:", e);
       const msg =

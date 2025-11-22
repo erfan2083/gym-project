@@ -10,6 +10,7 @@ import LoginScreen from "../screens/auth/LoginScreen";
 import ResetPasswordScreen from "../screens/auth/ResetPasswordScreen";
 import ProfileFormScreen from "../screens/profile/ProfileFormScreen";
 import HomeScreen from "../screens/home/HomeScreen";
+import SignatureScreen from "../screens/profile/SignatureScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -18,7 +19,7 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
-        initialRouteName="Signup"
+        initialRouteName="Login"
       >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Phone" component={PhoneNumberScreen} />
@@ -27,6 +28,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ResetPas" component={ResetPasswordScreen} />
         <Stack.Screen name="ProfileForm" component={ProfileFormScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Signature" component={SignatureScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
