@@ -1,5 +1,5 @@
 // api/trainer.js
-import client from "./client";
+import api from "./client";
 
 /**
  * گرفتن لیست تخصص‌ها
@@ -7,7 +7,7 @@ import client from "./client";
  * خروجی: آرایه‌ای از { id, name }
  */
 export async function getSpecialties() {
-  const res = await client.get("/api/trainer/specialties");
+  const res = await api.get("/api/trainer/specialties");
   return res.data;
 }
 
@@ -63,6 +63,6 @@ export async function createTrainerProfile(payload) {
     specialtyIds: Array.isArray(specialtyIds) ? specialtyIds : [],
   };
 
-  const res = await client.post("/api/trainer/profile", body);
+  const res = await api.post("/api/trainer/profile", body);
   return res.data;
 }

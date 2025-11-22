@@ -7,7 +7,10 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const userRouter = express.Router();
 
-router.post("/user/avatar", authMiddleware, updateUserAvatar);
+userRouter.post("/avatar",
+    authMiddleware,          // باید توکن ارسال بشه
+  uploadAvatarMiddleware,  // multer برای خواندن فایل
+  updateUserAvatar);
 
 
 export default userRouter;
