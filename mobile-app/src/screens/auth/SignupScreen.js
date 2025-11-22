@@ -49,7 +49,7 @@ export default function SignupScreen({ route, navigation }) {
     return okRole && okUser && okPair;
   }, [role, user, pass, repass]);
 
-  const onSubmit = navigation.navigate("ProfileForm");
+  const onSubmit = navigation.navigate("Home");
 
   // async () => {
   //   if (!valid || loading) return;

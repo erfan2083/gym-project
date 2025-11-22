@@ -30,7 +30,7 @@ import PrimaryButton from "../../components/ui/PrimaryButton";
 import {
   createTrainerProfile,
   getSpecialties,
-  uploadCertificate,   
+  uploadCertificate,
 } from "../../../api/trainer";
 import { useProfileStore } from "../../store/profileStore";
 
@@ -211,17 +211,14 @@ export default function ProfileFormScreen() {
 
     const loadSpecialties = async () => {
       try {
-        const data = await getSpecialties();   // ⬅️ این خودش آرایه است
+        const data = await getSpecialties();
         const items = (data || []).map((s) => ({
           label: s.name,
           value: String(s.id),
         }));
 
         if (isMounted) {
-          setSpecialtyOptions([
-            { label: "حیطه تخصصی:", value: "" },
-            ...items,
-          ]);
+          setSpecialtyOptions([{ label: "حیطه تخصصی:", value: "" }, ...items]);
         }
       } catch (e) {
         console.log("Error loading specialties:", e);
@@ -256,7 +253,6 @@ export default function ProfileFormScreen() {
     } catch (e) {
       console.log("Avatar pick error:", e);
     }
-    
   };
 
   const pickCertificate = async () => {
@@ -277,15 +273,15 @@ export default function ProfileFormScreen() {
   };
 
   const onSubmit = async (data) => {
-   try {
-      // ۱) اگر مدرک انتخاب شده، اول فایل رو آپلود کن
+    try {
+      // ۱) آپلود مدرک (اگر انتخاب شده)
       let certUrl = null;
       if (certificateFile?.uri) {
         const uploadRes = await uploadCertificate(certificateFile);
         certUrl = uploadRes?.data?.url || null;
       }
 
-      // ۲) بقیه دیتا مثل قبل
+      // ۲) بقیه دیتا
       const gender =
         !data.gender || data.gender === "other" ? null : data.gender;
 
@@ -311,13 +307,13 @@ export default function ProfileFormScreen() {
         telegramUrl: data.telegram || null,
         instagramUrl: data.instagram || null,
         specialtyIds: data.specialty ? [Number(data.specialty)] : [],
-        certificateImageUrl: certUrl, // ⬅️ حالا URL آپلود شده
+        certificateImageUrl: certUrl,
       };
 
       const res = await createTrainerProfile(payload);
       console.log("Trainer profile created =>", res?.data || res);
 
-      // ذخیره در استور لوکال برای استفاده در UI
+      // ذخیره در Zustand
       setProfile({
         username: data.username.trim(),
         name: data.username.trim(),
@@ -377,6 +373,18 @@ export default function ProfileFormScreen() {
 
   const isSaveDisabled = !isValid || isSubmitting;
 
+  // helper برای تشخیص عکس بودن مدرک
+  const isCertificateImage =
+    certificateFile &&
+    ((certificateFile.mimeType &&
+      certificateFile.mimeType.startsWith("image/")) ||
+      (certificateFile.name &&
+        /\.(jpg|jpeg|png|webp|gif)$/i.test(certificateFile.name)));
+
+  const certificateSizeKB = certificateFile?.size
+    ? Math.round(certificateFile.size / 1024)
+    : null;
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAwareScrollView
@@ -409,6 +417,8 @@ export default function ProfileFormScreen() {
               />
             </View>
           )}
+
+          {/* دایره + */}
           <View style={styles.avatarPlus}>
             <FontAwesome
               name="plus"
@@ -604,21 +614,63 @@ export default function ProfileFormScreen() {
         {/* مدرک مربیگری */}
         <View style={styles.field}>
           <Text style={styles.label}>مدرک مربیگری:</Text>
+
           <Pressable style={styles.uploadBox} onPress={pickCertificate}>
-            <Feather
-              name="upload"
-              size={32}
-              color={COLORS.text}
-              style={{
-                transform: [{ translateY: ms(-1) }],
-                marginBottom: ms(13),
-                marginTop: ms(20),
-              }}
-            />
-            <Text style={styles.uploadText}>
-              {certificateFile ? certificateFile.name : "افزودن مدرک"}
-            </Text>
+            {/* اگر چیزی انتخاب نشده */}
+            {!certificateFile && (
+              <>
+                <Feather
+                  name="upload"
+                  size={32}
+                  color={COLORS.text}
+                  style={{
+                    transform: [{ translateY: ms(-1) }],
+                    marginBottom: ms(13),
+                    marginTop: ms(20),
+                  }}
+                />
+                <Text style={styles.uploadText}>افزودن مدرک</Text>
+              </>
+            )}
+
+            {/* اگر فایل انتخاب شده */}
+            {certificateFile && (
+              <View style={styles.previewRow}>
+                {/* اگر عکس باشد */}
+                {(certificateFile.mimeType?.startsWith("image/") ||
+                  /\.(jpg|jpeg|png|webp)$/i.test(certificateFile.name)) && (
+                  <Image
+                    source={{ uri: certificateFile.uri }}
+                    style={styles.certificateImage}
+                  />
+                )}
+
+                {/* اگر عکس نبود → PDF یا دیگر فایل‌ها */}
+                {!(
+                  certificateFile.mimeType?.startsWith("image/") ||
+                  /\.(jpg|jpeg|png|webp)$/i.test(certificateFile.name)
+                ) && (
+                  <View style={styles.pdfIcon}>
+                    <Feather name="file-text" size={28} color={COLORS.text} />
+                  </View>
+                )}
+
+                {/* متن فایل */}
+                <View style={styles.previewTextCol}>
+                  <Text
+                    style={styles.certificateName}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {certificateFile.name}
+                  </Text>
+
+                  <Text style={styles.changeHint}>برای تغییر دوباره بزنید</Text>
+                </View>
+              </View>
+            )}
           </Pressable>
+
           {errors.certificate && (
             <Text style={styles.errorText}>{errors.certificate.message}</Text>
           )}
@@ -797,18 +849,6 @@ const styles = StyleSheet.create({
   dropdownPlaceholder: {
     color: COLORS.text2,
   },
-  birthRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-  },
-  birthItem: {
-    flex: 1,
-  },
-  birthSeparator: {
-    marginHorizontal: ms(4),
-    color: COLORS.text,
-    fontFamily: "Vazirmatn_400Regular",
-  },
   textArea: {
     height: ms(120),
     borderRadius: ms(12),
@@ -828,11 +868,57 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     width: ms(320),
+    paddingHorizontal: ms(12),
   },
   uploadText: {
     fontSize: ms(12),
     color: COLORS.text2,
     fontFamily: "Vazirmatn_400Regular",
+  },
+  uploadContentRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    width: "100%",
+  },
+  certificateThumb: {
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(10),
+    marginLeft: ms(12),
+  },
+  certificateIconWrap: {
+    width: ms(56),
+    height: ms(56),
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: ms(12),
+  },
+  certificateTextCol: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  certificateName: {
+    fontSize: ms(12),
+    color: COLORS.white,
+    fontFamily: "Vazirmatn_400Regular",
+    marginBottom: ms(4),
+    textAlign: "right",
+  },
+  certificateMeta: {
+    fontSize: ms(10),
+    color: COLORS.text2,
+    fontFamily: "Vazirmatn_400Regular",
+    marginBottom: ms(2),
+    textAlign: "right",
+  },
+  certificateChangeHint: {
+    fontSize: ms(10),
+    color: COLORS.primary,
+    fontFamily: "Vazirmatn_400Regular",
+    textAlign: "right",
   },
   sectionLabel: {
     marginTop: ms(8),
@@ -899,38 +985,75 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    width: ms(320), // ❗ هم‌عرض بقیه فیلدها
+    width: ms(320),
   },
-
   birthLabel: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.text,
     marginLeft: ms(8),
   },
-
   birthInlineRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
   },
-
   birthDropdown: {
     backgroundColor: "transparent",
     height: ms(48),
     paddingHorizontal: 0,
     minWidth: ms(55),
-    width: "auto", // ❗ مهم: عرض فقط به اندازه متن
+    width: "auto",
     justifyContent: "center",
   },
-
   birthText: {
     fontSize: ms(12),
     textAlignVertical: "center",
   },
-
   birthSeparator: {
     marginHorizontal: ms(4),
     color: COLORS.text,
     fontFamily: "Vazirmatn_400Regular",
+  },
+  previewRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    width: "100%",
+  },
+
+  certificateImage: {
+    width: ms(70),
+    height: ms(70),
+    borderRadius: ms(10),
+    marginLeft: ms(12),
+  },
+
+  pdfIcon: {
+    width: ms(70),
+    height: ms(70),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.inputBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: ms(12),
+  },
+
+  previewTextCol: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
+  certificateName: {
+    fontSize: ms(12),
+    color: COLORS.white,
+    fontFamily: "Vazirmatn_400Regular",
+    marginBottom: ms(4),
+    textAlign: "right",
+  },
+
+  changeHint: {
+    fontSize: ms(10),
+    color: COLORS.primary,
+    fontFamily: "Vazirmatn_400Regular",
+    textAlign: "right",
   },
 });
