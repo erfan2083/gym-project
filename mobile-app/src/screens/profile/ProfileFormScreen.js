@@ -425,6 +425,7 @@ export default function ProfileFormScreen() {
         phone: data.phone || "",
         instagram: data.instagram || "",
         telegram: data.telegram || "",
+        certificateImageUrl: certUrl || certificateFile?.uri || null,
       });
 
       Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅");

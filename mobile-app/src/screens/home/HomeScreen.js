@@ -1,3 +1,4 @@
+// src/screens/home/HomeScreen.js
 import React, { useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { ms } from "react-native-size-matters";
@@ -6,20 +7,28 @@ import { COLORS } from "../../theme/colors";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
+import ProfileTab from "../../components/home/ProfileTab";
 
 export default function HomeScreen() {
-  // تب فعال
   const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
 
   const renderContent = () => {
     if (activeTab === "home") {
-      return <Text style={styles.contentText}>صفحه هوم</Text>;
+      return (
+        <View style={styles.centerContent}>
+          <Text style={styles.contentText}>صفحه هوم</Text>
+        </View>
+      );
     }
     if (activeTab === "workout") {
-      return <Text style={styles.contentText}>صفحه تمرین‌ها</Text>;
+      return (
+        <View style={styles.centerContent}>
+          <Text style={styles.contentText}>صفحه تمرین‌ها</Text>
+        </View>
+      );
     }
     if (activeTab === "profile") {
-      return <Text style={styles.contentText}>صفحه پروفایل</Text>;
+      return <ProfileTab />;
     }
     return null;
   };
@@ -27,7 +36,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* محتوای وسط، فقط متن ساده فعلاً */}
+        {/* محتوای تب‌ها */}
         <View style={styles.content}>{renderContent()}</View>
 
         {/* نوار پایین با ۳ گزینه، همیشه ثابت */}
@@ -89,8 +98,10 @@ const styles = StyleSheet.create({
     paddingTop: ms(24),
     paddingBottom: ms(24),
   },
-
   content: {
+    flex: 1,
+  },
+  centerContent: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -100,7 +111,6 @@ const styles = StyleSheet.create({
     fontSize: ms(18),
     color: COLORS.white,
   },
-
   bottomBarWrapper: {
     justifyContent: "flex-end",
   },
