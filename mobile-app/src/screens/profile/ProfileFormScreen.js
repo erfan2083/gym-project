@@ -15,6 +15,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { ms } from "react-native-size-matters";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Feather } from "@expo/vector-icons";
@@ -49,7 +50,7 @@ const CITIES_BY_PROVINCE = iranLocations.reduce((acc, p) => {
 
 // ---------- تاریخ تولد ----------
 
-const years = Array.from({ length: 80 }, (_, i) => 1403 - i);
+const years = Array.from({ length: 80 }, (_, i) => 1404 - i);
 const persianMonths = [
   "فروردین",
   "اردیبهشت",
@@ -108,6 +109,22 @@ function SelectField({
     setVisible(false);
   };
 
+  // 👇 اینجا متن نهایی رو می‌سازیم به شکل «استان: فارس»
+  let displayText = (placeholder || "").trimEnd();
+
+  if (value && selectedLabel) {
+    const base = (placeholder || "").trimEnd(); // مثل "استان:" یا "جنسیت:" یا "روز"
+    if (!base) {
+      displayText = selectedLabel;
+    } else if (base.endsWith(":")) {
+      // "استان:" + " فارس"
+      displayText = `${base} ${selectedLabel}`;
+    } else {
+      // "روز" + " 5" → "روز 5"
+      displayText = `${base} ${selectedLabel}`;
+    }
+  }
+
   return (
     <>
       <Pressable
@@ -126,7 +143,7 @@ function SelectField({
           ]}
           numberOfLines={1}
         >
-          {selectedLabel || placeholder}
+          {displayText}
         </Text>
         <View style={styles.dropdownIcon}>
           <Entypo name="triangle-down" size={ms(21)} color={COLORS.text} />
@@ -166,11 +183,23 @@ function SelectField({
   );
 }
 
+// ---------- helper برای تشخیص عکس بودن مدرک ----------
+
+const isImageFile = (file) => {
+  if (!file) return false;
+  const mime = file.mimeType || file.type || "";
+  if (mime.startsWith("image/")) return true;
+  const name = (file.name || "").toLowerCase();
+  return /\.(png|jpe?g|webp|gif)$/i.test(name);
+};
+
 // ---------- صفحه اصلی ----------
 
 export default function ProfileFormScreen() {
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
+  const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
+
   const setProfile = useProfileStore((state) => state.setProfile);
 
   const {
@@ -211,7 +240,7 @@ export default function ProfileFormScreen() {
 
     const loadSpecialties = async () => {
       try {
-        const data = await getSpecialties();
+        const data = await getSpecialties(); // فرض: آرایه مستقیم
         const items = (data || []).map((s) => ({
           label: s.name,
           value: String(s.id),
@@ -238,22 +267,84 @@ export default function ProfileFormScreen() {
     return arr.map((c) => ({ label: c, value: c }));
   }, [selectedProvinceId]);
 
-  // آواتار با sheet سیستمی (Camera / Gallery / Files...)
-  const pickAvatar = async () => {
+  const extractFileFromPickerResult = (result) => {
+    if (result?.assets && result.assets.length > 0) {
+      return result.assets[0];
+    }
+    return result;
+  };
+
+  // -------- آواتار با کراپ مثل تلگرام --------
+
+  const openAvatarSheet = () => {
+    setAvatarSheetVisible(true);
+  };
+
+  const closeAvatarSheet = () => {
+    setAvatarSheetVisible(false);
+  };
+
+  const pickAvatarFromLibrary = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["image/*"],
-        copyToCacheDirectory: true,
-        multiple: false,
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("دسترسی", "اجازه دسترسی به گالری داده نشد.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, // 🔥 کراپ داخلی
+        aspect: [1, 1], // مربع
+        quality: 0.8,
       });
 
-      if (result.type === "success") {
-        setAvatarUri(result.uri);
+      if (!result.canceled) {
+        const asset = result.assets?.[0];
+        if (asset?.uri) {
+          setAvatarUri(asset.uri);
+        }
       }
     } catch (e) {
-      console.log("Avatar pick error:", e);
+      console.log("pickAvatarFromLibrary error:", e);
+    } finally {
+      closeAvatarSheet();
     }
   };
+
+  const pickAvatarFromCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("دسترسی", "اجازه دسترسی به دوربین داده نشد.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const asset = result.assets?.[0];
+        if (asset?.uri) {
+          setAvatarUri(asset.uri);
+        }
+      }
+    } catch (e) {
+      console.log("pickAvatarFromCamera error:", e);
+    } finally {
+      closeAvatarSheet();
+    }
+  };
+
+  const clearAvatar = () => {
+    setAvatarUri(null);
+    closeAvatarSheet();
+  };
+
+  // -------- مدرک مربیگری --------
 
   const pickCertificate = async () => {
     try {
@@ -263,25 +354,31 @@ export default function ProfileFormScreen() {
         multiple: false,
       });
 
-      if (result.type === "success") {
-        setCertificateFile(result);
-        setValue("certificate", result, { shouldValidate: true });
+      if (result.type === "success" || result.canceled === false) {
+        const file = extractFileFromPickerResult(result);
+        if (file?.uri) {
+          setCertificateFile(file);
+          setValue("certificate", file, { shouldValidate: true });
+        }
       }
     } catch (e) {
       console.log("Certificate pick error:", e);
     }
   };
 
+  const clearCertificate = () => {
+    setCertificateFile(null);
+    setValue("certificate", null, { shouldValidate: true });
+  };
+
   const onSubmit = async (data) => {
     try {
-      // ۱) آپلود مدرک (اگر انتخاب شده)
       let certUrl = null;
       if (certificateFile?.uri) {
         const uploadRes = await uploadCertificate(certificateFile);
         certUrl = uploadRes?.data?.url || null;
       }
 
-      // ۲) بقیه دیتا
       const gender =
         !data.gender || data.gender === "other" ? null : data.gender;
 
@@ -313,7 +410,6 @@ export default function ProfileFormScreen() {
       const res = await createTrainerProfile(payload);
       console.log("Trainer profile created =>", res?.data || res);
 
-      // ذخیره در Zustand
       setProfile({
         username: data.username.trim(),
         name: data.username.trim(),
@@ -373,18 +469,6 @@ export default function ProfileFormScreen() {
 
   const isSaveDisabled = !isValid || isSubmitting;
 
-  // helper برای تشخیص عکس بودن مدرک
-  const isCertificateImage =
-    certificateFile &&
-    ((certificateFile.mimeType &&
-      certificateFile.mimeType.startsWith("image/")) ||
-      (certificateFile.name &&
-        /\.(jpg|jpeg|png|webp|gif)$/i.test(certificateFile.name)));
-
-  const certificateSizeKB = certificateFile?.size
-    ? Math.round(certificateFile.size / 1024)
-    : null;
-
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAwareScrollView
@@ -402,7 +486,7 @@ export default function ProfileFormScreen() {
         <Text style={styles.title}>اطلاعات اولیه</Text>
 
         {/* آواتار */}
-        <Pressable onPress={pickAvatar} style={styles.avatarWrapper}>
+        <Pressable onPress={openAvatarSheet} style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
           ) : (
@@ -417,8 +501,6 @@ export default function ProfileFormScreen() {
               />
             </View>
           )}
-
-          {/* دایره + */}
           <View style={styles.avatarPlus}>
             <FontAwesome
               name="plus"
@@ -430,6 +512,13 @@ export default function ProfileFormScreen() {
             />
           </View>
         </Pressable>
+
+        {avatarUri && (
+          <Pressable onPress={clearAvatar} style={styles.clearAvatarBtn}>
+            <Feather name="trash-2" size={14} color={COLORS.danger} />
+            <Text style={styles.clearAvatarText}>حذف عکس پروفایل</Text>
+          </Pressable>
+        )}
 
         {/* نام کاربری */}
         <View style={styles.field}>
@@ -484,7 +573,7 @@ export default function ProfileFormScreen() {
                   <SelectField
                     value={value}
                     onChange={onChange}
-                    placeholder="روز"
+                    placeholder="روز:"
                     options={dayOptions}
                     containerStyle={styles.birthDropdown}
                     textStyle={styles.birthText}
@@ -502,7 +591,7 @@ export default function ProfileFormScreen() {
                   <SelectField
                     value={value}
                     onChange={onChange}
-                    placeholder="ماه"
+                    placeholder="ماه:"
                     options={monthOptions}
                     containerStyle={styles.birthDropdown}
                     textStyle={styles.birthText}
@@ -520,7 +609,7 @@ export default function ProfileFormScreen() {
                   <SelectField
                     value={value}
                     onChange={onChange}
-                    placeholder="سال   "
+                    placeholder="سال:"
                     options={yearOptions}
                     containerStyle={styles.birthDropdown}
                     textStyle={styles.birthText}
@@ -614,10 +703,32 @@ export default function ProfileFormScreen() {
         {/* مدرک مربیگری */}
         <View style={styles.field}>
           <Text style={styles.label}>مدرک مربیگری:</Text>
-
           <Pressable style={styles.uploadBox} onPress={pickCertificate}>
-            {/* اگر چیزی انتخاب نشده */}
-            {!certificateFile && (
+            {certificateFile ? (
+              <>
+                {isImageFile(certificateFile) && certificateFile.uri ? (
+                  <Image
+                    source={{ uri: certificateFile.uri }}
+                    style={styles.certificatePreviewImage}
+                    resizeMode="cover"
+                  />
+                ) : null}
+
+                <View style={styles.certificateInfoRow}>
+                  {!isImageFile(certificateFile) && (
+                    <Feather
+                      name="file-text"
+                      size={24}
+                      color={COLORS.text}
+                      style={{ marginLeft: ms(8) }}
+                    />
+                  )}
+                  <Text style={styles.certificateFileName} numberOfLines={1}>
+                    {certificateFile.name || "فایل انتخاب شد"}
+                  </Text>
+                </View>
+              </>
+            ) : (
               <>
                 <Feather
                   name="upload"
@@ -632,45 +743,13 @@ export default function ProfileFormScreen() {
                 <Text style={styles.uploadText}>افزودن مدرک</Text>
               </>
             )}
-
-            {/* اگر فایل انتخاب شده */}
-            {certificateFile && (
-              <View style={styles.previewRow}>
-                {/* اگر عکس باشد */}
-                {(certificateFile.mimeType?.startsWith("image/") ||
-                  /\.(jpg|jpeg|png|webp)$/i.test(certificateFile.name)) && (
-                  <Image
-                    source={{ uri: certificateFile.uri }}
-                    style={styles.certificateImage}
-                  />
-                )}
-
-                {/* اگر عکس نبود → PDF یا دیگر فایل‌ها */}
-                {!(
-                  certificateFile.mimeType?.startsWith("image/") ||
-                  /\.(jpg|jpeg|png|webp)$/i.test(certificateFile.name)
-                ) && (
-                  <View style={styles.pdfIcon}>
-                    <Feather name="file-text" size={28} color={COLORS.text} />
-                  </View>
-                )}
-
-                {/* متن فایل */}
-                <View style={styles.previewTextCol}>
-                  <Text
-                    style={styles.certificateName}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
-                  >
-                    {certificateFile.name}
-                  </Text>
-
-                  <Text style={styles.changeHint}>برای تغییر دوباره بزنید</Text>
-                </View>
-              </View>
-            )}
           </Pressable>
-
+          {certificateFile && (
+            <Pressable onPress={clearCertificate} style={styles.clearCertBtn}>
+              <Feather name="trash-2" size={14} color={COLORS.danger} />
+              <Text style={styles.clearCertText}>حذف مدرک</Text>
+            </Pressable>
+          )}
           {errors.certificate && (
             <Text style={styles.errorText}>{errors.certificate.message}</Text>
           )}
@@ -752,6 +831,71 @@ export default function ProfileFormScreen() {
           textColor={isSaveDisabled ? "#2C2727" : COLORS.white}
           style={styles.saveButton}
         />
+
+        {/* bottom sheet ساده برای آواتار */}
+        <Modal
+          visible={avatarSheetVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeAvatarSheet}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={closeAvatarSheet} />
+          <View style={styles.avatarSheetContainer}>
+            <View style={styles.avatarSheet}>
+              <Text style={styles.avatarSheetTitle}>عکس پروفایل</Text>
+
+              <Pressable
+                style={styles.avatarSheetItem}
+                onPress={pickAvatarFromCamera}
+              >
+                <Feather
+                  name="camera"
+                  size={20}
+                  color={COLORS.white}
+                  style={{ marginLeft: ms(8) }}
+                />
+                <Text style={styles.avatarSheetItemText}>
+                  گرفتن عکس با دوربین
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.avatarSheetItem}
+                onPress={pickAvatarFromLibrary}
+              >
+                <Feather
+                  name="image"
+                  size={20}
+                  color={COLORS.white}
+                  style={{ marginLeft: ms(8) }}
+                />
+                <Text style={styles.avatarSheetItemText}>انتخاب از گالری</Text>
+              </Pressable>
+
+              {avatarUri && (
+                <Pressable
+                  style={[styles.avatarSheetItem, { borderTopWidth: 0 }]}
+                  onPress={clearAvatar}
+                >
+                  <Feather
+                    name="trash-2"
+                    size={20}
+                    color={COLORS.danger}
+                    style={{ marginLeft: ms(8) }}
+                  />
+                  <Text
+                    style={[
+                      styles.avatarSheetItemText,
+                      { color: COLORS.danger },
+                    ]}
+                  >
+                    حذف عکس فعلی
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </Modal>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -782,7 +926,7 @@ const styles = StyleSheet.create({
     width: ms(120),
     height: ms(120),
     borderRadius: ms(300),
-    marginBottom: ms(84),
+    marginBottom: ms(55),
     justifyContent: "center",
     alignItems: "center",
   },
@@ -798,6 +942,28 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: ms(60),
+  },
+  avatarPlus: {
+    position: "absolute",
+    bottom: ms(-1),
+    right: ms(3),
+    width: ms(32),
+    height: ms(32),
+    borderRadius: ms(16),
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  clearAvatarBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginBottom: ms(24),
+  },
+  clearAvatarText: {
+    fontSize: ms(12),
+    color: COLORS.danger,
+    marginRight: ms(4),
+    fontFamily: "Vazirmatn_400Regular",
   },
   field: {
     marginBottom: ms(16),
@@ -868,57 +1034,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     width: ms(320),
-    paddingHorizontal: ms(12),
+    paddingHorizontal: ms(10),
   },
   uploadText: {
     fontSize: ms(12),
     color: COLORS.text2,
     fontFamily: "Vazirmatn_400Regular",
-  },
-  uploadContentRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    width: "100%",
-  },
-  certificateThumb: {
-    width: ms(56),
-    height: ms(56),
-    borderRadius: ms(10),
-    marginLeft: ms(12),
-  },
-  certificateIconWrap: {
-    width: ms(56),
-    height: ms(56),
-    borderRadius: ms(10),
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: ms(12),
-  },
-  certificateTextCol: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  certificateName: {
-    fontSize: ms(12),
-    color: COLORS.white,
-    fontFamily: "Vazirmatn_400Regular",
-    marginBottom: ms(4),
-    textAlign: "right",
-  },
-  certificateMeta: {
-    fontSize: ms(10),
-    color: COLORS.text2,
-    fontFamily: "Vazirmatn_400Regular",
-    marginBottom: ms(2),
-    textAlign: "right",
-  },
-  certificateChangeHint: {
-    fontSize: ms(10),
-    color: COLORS.primary,
-    fontFamily: "Vazirmatn_400Regular",
-    textAlign: "right",
   },
   sectionLabel: {
     marginTop: ms(8),
@@ -966,17 +1087,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     textAlign: "right",
   },
-  avatarPlus: {
-    position: "absolute",
-    bottom: ms(-1),
-    right: ms(3),
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   birthContainer: {
     backgroundColor: COLORS.inputBg2,
     borderRadius: ms(12),
@@ -985,75 +1095,102 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    width: ms(320),
+    width: ms(320), // ❗ هم‌عرض بقیه فیلدها
   },
+
   birthLabel: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.text,
     marginLeft: ms(8),
   },
+
   birthInlineRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
   },
+
   birthDropdown: {
     backgroundColor: "transparent",
     height: ms(48),
     paddingHorizontal: 0,
     minWidth: ms(55),
-    width: "auto",
+    width: "auto", // ❗ مهم: عرض فقط به اندازه متن
     justifyContent: "center",
   },
+
   birthText: {
     fontSize: ms(12),
     textAlignVertical: "center",
   },
+
   birthSeparator: {
     marginHorizontal: ms(4),
     color: COLORS.text,
     fontFamily: "Vazirmatn_400Regular",
   },
-  previewRow: {
+  certificatePreviewImage: {
+    width: "100%",
+    height: ms(70),
+    borderRadius: ms(8),
+    marginBottom: ms(8),
+  },
+  certificateInfoRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    width: "100%",
+    alignSelf: "stretch",
   },
-
-  certificateImage: {
-    width: ms(70),
-    height: ms(70),
-    borderRadius: ms(10),
-    marginLeft: ms(12),
-  },
-
-  pdfIcon: {
-    width: ms(70),
-    height: ms(70),
-    borderRadius: ms(10),
-    backgroundColor: COLORS.inputBg,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: ms(12),
-  },
-
-  previewTextCol: {
+  certificateFileName: {
     flex: 1,
-    alignItems: "flex-end",
-  },
-
-  certificateName: {
     fontSize: ms(12),
     color: COLORS.white,
     fontFamily: "Vazirmatn_400Regular",
-    marginBottom: ms(4),
     textAlign: "right",
   },
-
-  changeHint: {
-    fontSize: ms(10),
-    color: COLORS.primary,
+  clearCertBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: ms(6),
+    alignSelf: "flex-end",
+  },
+  clearCertText: {
+    fontSize: ms(12),
+    color: COLORS.danger,
+    marginRight: ms(4),
     fontFamily: "Vazirmatn_400Regular",
+  },
+  avatarSheetContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  avatarSheet: {
+    backgroundColor: COLORS.bg,
+    borderTopLeftRadius: ms(20),
+    borderTopRightRadius: ms(20),
+    paddingHorizontal: ms(20),
+    paddingTop: ms(12),
+    paddingBottom: ms(24),
+  },
+  avatarSheetTitle: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.white,
+    textAlign: "center",
+    marginBottom: ms(12),
+  },
+  avatarSheetItem: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    paddingVertical: ms(10),
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  avatarSheetItemText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(13),
+    color: COLORS.white,
     textAlign: "right",
   },
 });
