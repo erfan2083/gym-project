@@ -1,6 +1,7 @@
 import express from "express";
 import {
-  updateUserAvatar
+  updateUserAvatar,
+  uploadAvatarMiddleware
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 

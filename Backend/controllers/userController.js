@@ -1,7 +1,7 @@
 // Backend/controllers/userController.js
 import multer from "multer";
 import cloudinary from "../services/cloudinary.js";
-import pool from "../config/db.js";   // همونی که برای pool استفاده می‌کنی
+import pool from "../db/index.js";   // همونی که برای pool استفاده می‌کنی
 
 // حافظه‌ی موقت برای فایل (روی دیسک ننویسه)
 const upload = multer({ storage: multer.memoryStorage() });

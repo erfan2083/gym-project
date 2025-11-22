@@ -16,7 +16,7 @@ trainerRouter.get("/specialties", listSpecialties);
 // ساخت پروفایل مربی (فقط کاربر لاگین کرده)
 trainerRouter.post("/profile", authMiddleware, createTrainerProfile);
 
-router.post("/upload-certificate",
+trainerRouter.post("/upload-certificate",
   authMiddleware,
   uploadCertificateMiddleware,
   uploadCertificate

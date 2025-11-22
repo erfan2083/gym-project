@@ -10,7 +10,7 @@ import path from "path";
 export const listSpecialties = async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name FROM "gym-project".specialty ORDER BY name'
+      'SELECT id, name FROM "gym-project".specialty'
     );
     return res.json(result.rows);
   } catch (err) {

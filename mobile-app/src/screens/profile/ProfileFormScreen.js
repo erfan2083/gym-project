@@ -211,14 +211,17 @@ export default function ProfileFormScreen() {
 
     const loadSpecialties = async () => {
       try {
-        const res = await getSpecialties();
-        const items = (res.data || []).map((s) => ({
+        const data = await getSpecialties();   // ⬅️ این خودش آرایه است
+        const items = (data || []).map((s) => ({
           label: s.name,
           value: String(s.id),
         }));
 
         if (isMounted) {
-          setSpecialtyOptions([{ label: "حیطه تخصصی:", value: "" }, ...items]);
+          setSpecialtyOptions([
+            { label: "حیطه تخصصی:", value: "" },
+            ...items,
+          ]);
         }
       } catch (e) {
         console.log("Error loading specialties:", e);

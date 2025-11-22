@@ -11,7 +11,7 @@ export const uploadAvatar = (file) => {
     type: file.type || "image/jpeg",
   });
 
-  return api.post("/user/avatar", formData, {
+  return api.post("/api/user/avatar", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
