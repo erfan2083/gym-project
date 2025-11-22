@@ -14,4 +14,5 @@ trainerRouter.get("/specialties", listSpecialties);
 // ساخت پروفایل مربی (فقط کاربر لاگین کرده)
 trainerRouter.post("/profile", authMiddleware, createTrainerProfile);
 
+
 export default trainerRouter;
