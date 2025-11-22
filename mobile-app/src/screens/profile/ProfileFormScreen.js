@@ -256,6 +256,7 @@ export default function ProfileFormScreen() {
     } catch (e) {
       console.log("Avatar pick error:", e);
     }
+    
   };
 
   const pickCertificate = async () => {
