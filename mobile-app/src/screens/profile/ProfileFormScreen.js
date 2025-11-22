@@ -34,6 +34,7 @@ import {
   uploadCertificate,
 } from "../../../api/trainer";
 import { useProfileStore } from "../../store/profileStore";
+import { uploadAvatar } from "../../../api/user";
 
 // ---------- داده‌های ایران (استان / شهر) ----------
 
@@ -195,7 +196,13 @@ const isImageFile = (file) => {
 
 // ---------- صفحه اصلی ----------
 
-export default function ProfileFormScreen({ navigation }) {
+export default function ProfileFormScreen({ navigation, route }) {
+  const fullNameFromRoute =
+    route?.params?.fullName ||
+    route?.params?.full_name ||
+    route?.params?.name ||
+    "";
+
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
   const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
@@ -373,76 +380,92 @@ export default function ProfileFormScreen({ navigation }) {
 
   const onSubmit = async (data) => {
     try {
-      let certUrl = null;
-      if (certificateFile?.uri) {
-        const uploadRes = await uploadCertificate(certificateFile);
-        certUrl = uploadRes?.data?.url || null;
-      }
+    // ۱) آپلود مدرک مربیگری به Cloudinary
+    let certUrl = null;
+    if (certificateFile?.uri) {
+      const uploadRes = await uploadCertificate(certificateFile);
+      certUrl = uploadRes?.data?.url || null;
+    }
 
-      const gender =
-        !data.gender || data.gender === "other" ? null : data.gender;
-
-      let birthDate = null;
-      if (data.birthYear && data.birthMonth && data.birthDay) {
-        const y = String(data.birthYear).padStart(4, "0");
-        const m = String(data.birthMonth).padStart(2, "0");
-        const d = String(data.birthDay).padStart(2, "0");
-        birthDate = `${y}-${m}-${d}`;
-      }
-
-      const provinceFa =
-        PROVINCES.find((p) => p.id === data.province)?.name || "";
-
-      const payload = {
-        username: data.username.trim(),
-        gender,
-        birthDate,
-        province: provinceFa || null,
-        city: data.city || null,
-        bio: data.description || null,
-        contactPhone: data.phone || null,
-        telegramUrl: data.telegram || null,
-        instagramUrl: data.instagram || null,
-        specialtyIds: data.specialty ? [Number(data.specialty)] : [],
-        certificateImageUrl: certUrl,
+    // ۲) آپلود آواتار (اگر انتخاب شده باشد)
+    let avatarUrl = null;
+    if (avatarUri) {
+      const avatarFile = {
+        uri: avatarUri,
+        name: `avatar_${Date.now()}.jpg`,
+        type: "image/jpeg",
       };
 
-      const res = await createTrainerProfile(payload);
-      console.log("Trainer profile created =>", res?.data || res);
-
-      // پروفایل لوکال برای تب پروفایل
-      setProfile({
-        username: data.username.trim(),
-        name: data.username.trim(),
-        city: data.city || "",
-        avatarUri: avatarUri || null,
-        specialties: data.specialty
-          ? [
-              specialtyOptions.find((s) => s.value === data.specialty)?.label ||
-                "",
-            ]
-          : [],
-        description: data.description || "",
-        phone: data.phone || "",
-        instagram: data.instagram || "",
-        telegram: data.telegram || "",
-      });
-
-      // ✅ بعد از ذخیره، برو به صفحه امضا
-      Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅", [
-        {
-          text: "ادامه",
-          onPress: () => navigation.replace("Signature"),
-        },
-      ]);
-    } catch (e) {
-      console.error("Create trainer profile error:", e);
-      const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "خطا در ذخیره پروفایل. لطفاً دوباره تلاش کنید.";
-      Alert.alert("خطا", msg);
+      const avatarRes = await uploadAvatar(avatarFile);
+      avatarUrl = avatarRes?.data?.avatarUrl || null;
     }
+
+    // ۳) بقیه‌ی فیلدها مثل قبل
+    const gender =
+      !data.gender || data.gender === "other" ? null : data.gender;
+
+    let birthDate = null;
+    if (data.birthYear && data.birthMonth && data.birthDay) {
+      const y = String(data.birthYear).padStart(4, "0");
+      const m = String(data.birthMonth).padStart(2, "0");
+      const d = String(data.birthDay).padStart(2, "0");
+      birthDate = `${y}-${m}-${d}`;
+    }
+
+    const provinceFa =
+      PROVINCES.find((p) => p.id === data.province)?.name || "";
+
+    const payload = {
+      username: data.username.trim(),
+      gender,
+      birthDate,
+      province: provinceFa || null,
+      city: data.city || null,
+      bio: data.description || null,
+      contactPhone: data.phone || null,
+      telegramUrl: data.telegram || null,
+      instagramUrl: data.instagram || null,
+      specialtyIds: data.specialty ? [Number(data.specialty)] : [],
+      certificateImageUrl: certUrl,
+    };
+
+    const res = await createTrainerProfile(payload);
+    console.log("Trainer profile created =>", res?.data || res);
+
+    // ۴) ذخیره‌ی پروفایل لوکال برای تب پروفایل
+    setProfile({
+      username: data.username.trim(),
+      name: fullNameFromRoute,
+      city: data.city || "",
+      // اگر آدرس Cloudinary داشتیم، همون؛ وگرنه همون uri لوکال
+      avatarUri: avatarUrl || avatarUri || null,
+      specialties: data.specialty
+        ? [
+            specialtyOptions.find((s) => s.value === data.specialty)?.label ||
+              "",
+          ]
+        : [],
+      description: data.description || "",
+      phone: data.phone || "",
+      instagram: data.instagram || "",
+      telegram: data.telegram || "",
+      certificateImageUrl: certificateFile?.uri || null,
+    });
+
+    Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅", [
+      {
+        text: "ادامه",
+        onPress: () => navigation.replace("Signature"),
+      },
+    ]);
+  } catch (e) {
+    console.error("Create trainer profile error:", e);
+    const msg =
+      e?.response?.data?.message ||
+      e?.message ||
+      "خطا در ذخیره پروفایل. لطفاً دوباره تلاش کنید.";
+    Alert.alert("خطا", msg);
+  }
   };
 
   const genderOptions = [

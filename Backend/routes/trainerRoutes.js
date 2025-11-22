@@ -3,8 +3,8 @@ import express from "express";
 import {
   listSpecialties,
   createTrainerProfile,
-  uploadCertificateMiddleware,
-  uploadCertificate
+  uploadCertificate,
+  handleCertificateUpload
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -18,8 +18,8 @@ trainerRouter.post("/profile", authMiddleware, createTrainerProfile);
 
 trainerRouter.post("/upload-certificate",
   authMiddleware,
-  uploadCertificateMiddleware,
-  uploadCertificate
+  uploadCertificate,
+  handleCertificateUpload
 );
 
 

@@ -42,7 +42,7 @@ export async function updateUserAvatar(req, res) {
     const avatarUrl = uploadResult.secure_url;
 
     // آپدیت در دیتابیس با پروسیجر
-    await pool.none(
+    await pool.query(
       `CALL "gym-project".update_user_avatar($1, $2)`,
       [userId, avatarUrl]
     );

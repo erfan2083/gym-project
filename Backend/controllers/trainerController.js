@@ -1,7 +1,8 @@
 // Backend/controllers/trainerController.js
 import pool from "../db/index.js";
 import multer from "multer";
-import path from "path";
+import cloudinary from "../services/cloudinary.js";
+
 
 /**
  * GET /api/trainer/specialties
@@ -57,10 +58,6 @@ export const createTrainerProfile = async (req, res) => {
     const prov = province && province !== "" ? province : null;
     const c = city && city !== "" ? city : null;
     const b = bio && bio !== "" ? bio : null;
-    const certUrl =
-      certificateImageUrl && certificateImageUrl !== ""
-        ? certificateImageUrl
-        : null;
     const phone =
       contactPhone && contactPhone !== "" ? contactPhone : null;
     const telegram =
@@ -82,6 +79,35 @@ export const createTrainerProfile = async (req, res) => {
     //   p_certificate_image_url, p_contact_phone,
     //   p_telegram_url, p_instagram_url, p_specialty_ids int[]
     // )
+
+    let certUrl = null;
+
+    if (req.file) {
+      // اگر فایل اومده
+      const isPdf = req.file.mimetype === "application/pdf";
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            {
+              folder: "trainer-certificates",
+              resource_type: isPdf ? "raw" : "image",
+              format: isPdf ? "pdf" : undefined,
+            },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          )
+          .end(req.file.buffer);
+      });
+
+      certUrl = uploadResult.secure_url;
+    } else if (certificateImageUrl && certificateImageUrl !== "") {
+      // بکاپ: اگر خواستی URL آماده بفرستی
+      certUrl = certificateImageUrl;
+    }
+
     await pool.query(
       'CALL "gym-project".create_trainer_profile($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
       [
@@ -104,7 +130,6 @@ export const createTrainerProfile = async (req, res) => {
   } catch (err) {
     console.error("createTrainerProfile error:", err);
 
-    // یوزرنیم تکراری (ایندکس یونیک روی trainerprofile.username)
     if (err.code === "23505") {
       return res.status(409).json({
         message: "این نام کاربری قبلاً استفاده شده است",
@@ -123,37 +148,44 @@ export const createTrainerProfile = async (req, res) => {
       return res.status(400).json({ message: "مقدار جنسیت نامعتبر است" });
     }
 
-    return res.status(500).json({ message: "خطای سرور در ساخت پروفایل مربی" });
+    return res
+      .status(500)
+      .json({ message: "خطای سرور در ساخت پروفایل مربی" });
   }
 };
 
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/certificates"); // فولدر ذخیره
+// ─── Upload middleware for certificate (memory + Cloudinary) ────────────
+const certificateUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // حداکثر ۵ مگابایت
   },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, "cert_" + Date.now() + ext);
+  fileFilter(req, file, cb) {
+    // فقط عکس یا PDF
+    if (
+      file.mimetype.startsWith("image/") ||
+      file.mimetype === "application/pdf"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("فقط فایل تصویری یا PDF مجاز است"));
+    }
   },
 });
 
-export const uploadCertificateMiddleware = multer({
-  storage,
-}).single("file");
+// اینو در روتر استفاده می‌کنیم
+export const uploadCertificate = certificateUpload.single("certificate");
 
-// فقط آپلود فایل → ذخیره در سرور
-export const uploadCertificate = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "فایلی انتخاب نشده است" });
-    }
 
-    const url = "/uploads/certificates/" + req.file.filename;
-
-    return res.json({ url });
-  } catch (err) {
-    console.error("Upload certificate error:", err);
-    return res.status(500).json({ message: "خطای آپلود فایل" });
-  }
+export const handleCertificateUpload = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+  const isPdf = req.file.mimetype === "application/pdf";
+  const result = await new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      { folder: "trainer-certificates", resource_type: isPdf ? "raw" : "image", format: isPdf ? "pdf" : undefined },
+      (err, data) => (err ? reject(err) : resolve(data))
+    ).end(req.file.buffer);
+  });
+  res.status(201).json({ url: result.secure_url });
 };
