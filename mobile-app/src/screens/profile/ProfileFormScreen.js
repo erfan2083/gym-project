@@ -27,7 +27,11 @@ import * as yup from "yup";
 import { COLORS } from "../../theme/colors";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
-import { createTrainerProfile, getSpecialties } from "../../../api/trainer";
+import {
+  createTrainerProfile,
+  getSpecialties,
+  uploadCertificate,   
+} from "../../../api/trainer";
 import { useProfileStore } from "../../store/profileStore";
 
 // ---------- داده‌های ایران (استان / شهر) ----------
@@ -269,7 +273,15 @@ export default function ProfileFormScreen() {
   };
 
   const onSubmit = async (data) => {
-    try {
+   try {
+      // ۱) اگر مدرک انتخاب شده، اول فایل رو آپلود کن
+      let certUrl = null;
+      if (certificateFile?.uri) {
+        const uploadRes = await uploadCertificate(certificateFile);
+        certUrl = uploadRes?.data?.url || null;
+      }
+
+      // ۲) بقیه دیتا مثل قبل
       const gender =
         !data.gender || data.gender === "other" ? null : data.gender;
 
@@ -295,12 +307,13 @@ export default function ProfileFormScreen() {
         telegramUrl: data.telegram || null,
         instagramUrl: data.instagram || null,
         specialtyIds: data.specialty ? [Number(data.specialty)] : [],
-        certificateImageUrl: certificateFile?.uri || null,
+        certificateImageUrl: certUrl, // ⬅️ حالا URL آپلود شده
       };
 
       const res = await createTrainerProfile(payload);
       console.log("Trainer profile created =>", res?.data || res);
 
+      // ذخیره در استور لوکال برای استفاده در UI
       setProfile({
         username: data.username.trim(),
         name: data.username.trim(),

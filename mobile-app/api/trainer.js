@@ -66,3 +66,20 @@ export async function createTrainerProfile(payload) {
   const res = await api.post("/api/trainer/profile", body);
   return res.data;
 }
+
+
+export const uploadCertificate = async (file) => {
+  const form = new FormData();
+
+  form.append("file", {
+    uri: file.uri,
+    name: file.name || "certificate.jpg",
+    type: file.mimeType || "image/jpeg",
+  });
+
+  return api.post("/trainer/upload-certificate", form, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};

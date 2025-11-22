@@ -1,5 +1,7 @@
 // Backend/controllers/trainerController.js
 import pool from "../db/index.js";
+import multer from "multer";
+import path from "path";
 
 /**
  * GET /api/trainer/specialties
@@ -122,5 +124,36 @@ export const createTrainerProfile = async (req, res) => {
     }
 
     return res.status(500).json({ message: "خطای سرور در ساخت پروفایل مربی" });
+  }
+};
+
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/certificates"); // فولدر ذخیره
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, "cert_" + Date.now() + ext);
+  },
+});
+
+export const uploadCertificateMiddleware = multer({
+  storage,
+}).single("file");
+
+// فقط آپلود فایل → ذخیره در سرور
+export const uploadCertificate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "فایلی انتخاب نشده است" });
+    }
+
+    const url = "/uploads/certificates/" + req.file.filename;
+
+    return res.json({ url });
+  } catch (err) {
+    console.error("Upload certificate error:", err);
+    return res.status(500).json({ message: "خطای آپلود فایل" });
   }
 };

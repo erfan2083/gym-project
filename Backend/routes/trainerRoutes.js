@@ -3,6 +3,8 @@ import express from "express";
 import {
   listSpecialties,
   createTrainerProfile,
+  uploadCertificateMiddleware,
+  uploadCertificate
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -13,6 +15,13 @@ trainerRouter.get("/specialties", listSpecialties);
 
 // ساخت پروفایل مربی (فقط کاربر لاگین کرده)
 trainerRouter.post("/profile", authMiddleware, createTrainerProfile);
+
+router.post("/upload-certificate",
+  authMiddleware,
+  uploadCertificateMiddleware,
+  uploadCertificate
+);
+
 
 
 export default trainerRouter;
