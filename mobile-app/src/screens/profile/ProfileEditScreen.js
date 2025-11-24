@@ -397,108 +397,108 @@ export default function ProfileEditScreen({ navigation }) {
   };
 
   const onSubmit = async (data) => {
-      try {
-    // ۱) مدرک مربیگری: اگر فایل جدید انتخاب شده بود، آپلود؛ وگرنه همونی که قبلاً از سرور داشتیم
-    let certUrl = currentCertUrl || null;
-    if (certificateFile?.uri) {
-      const uploadRes = await uploadCertificate(certificateFile);
-      certUrl = uploadRes?.data?.url || null;
-    }
+    try {
+      // ۱) مدرک مربیگری: اگر فایل جدید انتخاب شده بود، آپلود؛ وگرنه همونی که قبلاً از سرور داشتیم
+      let certUrl = currentCertUrl || null;
+      if (certificateFile?.uri) {
+        const uploadRes = await uploadCertificate(certificateFile);
+        certUrl = uploadRes?.data?.url || null;
+      }
 
-    // ۲) آواتار: اگر تغییر کرده، آپلود جدید؛ وگرنه مقدار فعلی
-    let avatarUrl = currentAvatarUri || null;
-    if (avatarUri && avatarUri !== currentAvatarUri) {
-      const avatarFile = {
-        uri: avatarUri,
-        name: `avatar_${Date.now()}.jpg`,
-        type: "image/jpeg",
+      // ۲) آواتار: اگر تغییر کرده، آپلود جدید؛ وگرنه مقدار فعلی
+      let avatarUrl = currentAvatarUri || null;
+      if (avatarUri && avatarUri !== currentAvatarUri) {
+        const avatarFile = {
+          uri: avatarUri,
+          name: `avatar_${Date.now()}.jpg`,
+          type: "image/jpeg",
+        };
+
+        const avatarRes = await uploadAvatar(avatarFile);
+        avatarUrl = avatarRes?.data?.avatarUrl || null;
+      }
+
+      // ۳) بقیه‌ی فیلدها
+      const gender =
+        !data.gender || data.gender === "other" ? null : data.gender;
+
+      let birthDate = null;
+      if (data.birthYear && data.birthMonth && data.birthDay) {
+        const y = String(data.birthYear).padStart(4, "0");
+        const m = String(data.birthMonth).padStart(2, "0");
+        const d = String(data.birthDay).padStart(2, "0");
+        birthDate = `${y}-${m}-${d}`;
+      }
+
+      const provinceFa =
+        PROVINCES.find((p) => p.id === data.province)?.name || null;
+
+      // اگر MultiSelectField مقدار آرایه برگردونه، این‌طوری هندل می‌کنیم
+      let specialtyIds = [];
+      if (Array.isArray(data.specialty)) {
+        specialtyIds = data.specialty.map((v) => Number(v)).filter(Boolean);
+      } else if (data.specialty) {
+        specialtyIds = [Number(data.specialty)];
+      }
+
+      const payload = {
+        // 👈 این name برای User.full_name
+        name: data.name?.trim() || null,
+
+        username: data.username?.trim() || null,
+        gender,
+        birthDate,
+        province: provinceFa,
+        city: data.city || null,
+        bio: data.description || null,
+        contactPhone: data.phone || null,
+        telegramUrl: data.telegram || null,
+        instagramUrl: data.instagram || null,
+        specialtyIds,
+        certificateImageUrl: certUrl,
+        // avatarUrl اینجا لازم نیست، چون با API جداگانه آپدیت شد
       };
 
-      const avatarRes = await uploadAvatar(avatarFile);
-      avatarUrl = avatarRes?.data?.avatarUrl || null;
+      const res = await updateTrainerProfile(payload);
+      console.log("Trainer profile updated =>", res?.data || res);
+
+      // ۴) آپدیت استور لوکال تا ProfileTab هم به‌روز بشه
+      setProfile({
+        ...profile,
+        name: data.name?.trim() || profile?.name || "",
+        username: data.username?.trim() || profile?.username || "",
+        city: data.city || "",
+        avatarUri: avatarUrl || null,
+        specialties:
+          specialtyIds.length > 0
+            ? specialtyIds
+                .map(
+                  (id) =>
+                    specialtyOptions.find((o) => o.value === String(id))?.label
+                )
+                .filter(Boolean)
+            : profile?.specialties || [],
+        description: data.description || "",
+        phone: data.phone || "",
+        instagram: data.instagram || "",
+        telegram: data.telegram || "",
+        certificateImageUrl: certUrl,
+      });
+
+      Alert.alert("موفق", "پروفایل شما با موفقیت به‌روزرسانی شد ✅", [
+        {
+          text: "بازگشت",
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    } catch (e) {
+      console.error("Update trainer profile error:", e);
+      const msg =
+        e?.response?.data?.message ||
+        e?.message ||
+        "خطا در ویرایش پروفایل. لطفاً دوباره تلاش کنید.";
+      Alert.alert("خطا", msg);
     }
-
-    // ۳) بقیه‌ی فیلدها
-    const gender =
-      !data.gender || data.gender === "other" ? null : data.gender;
-
-    let birthDate = null;
-    if (data.birthYear && data.birthMonth && data.birthDay) {
-      const y = String(data.birthYear).padStart(4, "0");
-      const m = String(data.birthMonth).padStart(2, "0");
-      const d = String(data.birthDay).padStart(2, "0");
-      birthDate = `${y}-${m}-${d}`;
-    }
-
-    const provinceFa =
-      PROVINCES.find((p) => p.id === data.province)?.name || null;
-
-    // اگر MultiSelectField مقدار آرایه برگردونه، این‌طوری هندل می‌کنیم
-    let specialtyIds = [];
-    if (Array.isArray(data.specialty)) {
-      specialtyIds = data.specialty.map((v) => Number(v)).filter(Boolean);
-    } else if (data.specialty) {
-      specialtyIds = [Number(data.specialty)];
-    }
-
-    const payload = {
-      // 👈 این name برای User.full_name
-      name: data.name?.trim() || null,
-
-      username: data.username?.trim() || null,
-      gender,
-      birthDate,
-      province: provinceFa,
-      city: data.city || null,
-      bio: data.description || null,
-      contactPhone: data.phone || null,
-      telegramUrl: data.telegram || null,
-      instagramUrl: data.instagram || null,
-      specialtyIds,
-      certificateImageUrl: certUrl,
-      // avatarUrl اینجا لازم نیست، چون با API جداگانه آپدیت شد
-    };
-
-    const res = await updateTrainerProfile(payload);
-    console.log("Trainer profile updated =>", res?.data || res);
-
-    // ۴) آپدیت استور لوکال تا ProfileTab هم به‌روز بشه
-    setProfile({
-      ...profile,
-      name: data.name?.trim() || profile?.name || "",
-      username: data.username?.trim() || profile?.username || "",
-      city: data.city || "",
-      avatarUri: avatarUrl || null,
-      specialties:
-        specialtyIds.length > 0
-          ? specialtyIds
-              .map(
-                (id) =>
-                  specialtyOptions.find((o) => o.value === String(id))?.label
-              )
-              .filter(Boolean)
-          : profile?.specialties || [],
-      description: data.description || "",
-      phone: data.phone || "",
-      instagram: data.instagram || "",
-      telegram: data.telegram || "",
-      certificateImageUrl: certUrl,
-    });
-
-    Alert.alert("موفق", "پروفایل شما با موفقیت به‌روزرسانی شد ✅", [
-      {
-        text: "بازگشت",
-        onPress: () => navigation.goBack(),
-      },
-    ]);
-  } catch (e) {
-    console.error("Update trainer profile error:", e);
-    const msg =
-      e?.response?.data?.message ||
-      e?.message ||
-      "خطا در ویرایش پروفایل. لطفاً دوباره تلاش کنید.";
-    Alert.alert("خطا", msg);
-  }
   };
 
   const genderOptions = [

@@ -203,12 +203,10 @@ const isImageFile = (file) => {
 
 // ---------- صفحه اصلی ----------
 
-export default function ProfileFormScreen({ navigation}) {
-
+export default function ProfileFormScreen({ navigation }) {
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
   const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
-
 
   const {
     control,
@@ -416,7 +414,6 @@ export default function ProfileFormScreen({ navigation}) {
       const provinceFa =
         PROVINCES.find((p) => p.id === data.province)?.name || "";
 
-      
       const specialtyIds = Array.isArray(data.specialty)
         ? data.specialty.map((id) => Number(id))
         : data.specialty

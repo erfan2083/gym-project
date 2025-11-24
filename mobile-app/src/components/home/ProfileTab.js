@@ -8,7 +8,7 @@ import {
   Pressable,
   Linking,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
@@ -75,9 +75,7 @@ export default function ProfileTab() {
       } catch (e) {
         if (!isMounted) return;
         setError(
-          e?.response?.data?.message ||
-            e.message ||
-            "خطا در گرفتن پروفایل مربی"
+          e?.response?.data?.message || e.message || "خطا در گرفتن پروفایل مربی"
         );
       } finally {
         if (isMounted) setLoading(false);
@@ -136,23 +134,22 @@ export default function ProfileTab() {
   };
 
   if (loading && !profile?.username) {
-  return (
-    <View style={styles.center}>
-      <ActivityIndicator size="small" color={COLORS.primary} />
-    </View>
-  );
-}
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="small" color={COLORS.primary} />
+      </View>
+    );
+  }
 
-if (error && !profile?.username) {
-  return (
-    <View style={styles.center}>
-      <Text style={{ color: COLORS.danger }}>{error}</Text>
-    </View>
-  );
-}
+  if (error && !profile?.username) {
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: COLORS.danger }}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
-    
     <View style={styles.container}>
       {/* هدر بالا */}
       <View style={styles.header}>
@@ -228,9 +225,12 @@ if (error && !profile?.username) {
       </View>
 
       {/* 🔥 مدرک مربیگری (بین حیطه تخصصی و توضیحات) */}
+      {/* 🔥 مدرک مربیگری (بین حیطه تخصصی و توضیحات) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>مدرک مربیگری:</Text>
-        <View style={styles.card}>
+
+        {/* 👇 ارتفاع این کارت رو با استایل certificateCard ثابت می‌کنیم */}
+        <View style={[styles.card, styles.certificateCard]}>
           {certificateImageUrl ? (
             <Pressable
               onPress={() => setCertificateModalVisible(true)}
@@ -462,25 +462,37 @@ const styles = StyleSheet.create({
   },
 
   // 🔥 استایل‌های مدرک
-  certificateThumbWrapper: {
-    borderRadius: ms(14),
-    overflow: "hidden",
+
+  certificateCard: {
+    height: ms(70), // 🔥 ارتفاع ثابت (هم با متن خالی، هم با عکس)
+    justifyContent: "center",
   },
+
+  certificateThumbWrapper: {
+    width: "100%",
+    height: "100%", // کل ارتفاع کارت رو می‌گیره
+    borderRadius: ms(12),
+    overflow: "hidden",
+    alignSelf: "flex-end", // راست‌چین داخل کارت
+  },
+
   certificateThumb: {
     width: "100%",
-    height: ms(110),
+    height: "100%",
   },
+
   certificateOverlay: {
     position: "absolute",
     bottom: 0,
     right: 0,
     left: 0,
-    paddingVertical: ms(6),
-    paddingHorizontal: ms(10),
     backgroundColor: "rgba(0,0,0,0.45)",
+    paddingVertical: ms(5),
+    paddingHorizontal: ms(10),
     flexDirection: "row-reverse",
     alignItems: "center",
   },
+
   certificateOverlayText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(11),
@@ -513,12 +525,12 @@ const styles = StyleSheet.create({
     padding: ms(8),
   },
   center: {
-  flex: 1,
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: COLORS.bg,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.bg,
   },
   contactBtnDisabled: {
     opacity: 0.4,
-  }
+  },
 });
