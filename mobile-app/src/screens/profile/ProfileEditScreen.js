@@ -228,6 +228,8 @@ export default function ProfileEditScreen({ navigation }) {
     // 👇 فیلدها رو با استور پر می‌کنیم
     defaultValues: {
       username: currentUsername,
+      name: currentName,
+
       gender: "", // فعلاً تو استور نداری
       birthDay: "", // فعلاً تو استور نداری
       birthMonth: "",
@@ -449,7 +451,8 @@ export default function ProfileEditScreen({ navigation }) {
       // ۳) آپدیت استور برای ProfileTab
       setProfile({
         username: data.username.trim(),
-        name: currentName,
+        name: data.name || currentName,
+
         city: data.city || "",
         avatarUri: avatarUrl || avatarUri || null,
 
@@ -587,6 +590,27 @@ export default function ProfileEditScreen({ navigation }) {
           {errors.username && (
             <Text style={styles.errorText}>{errors.username.message}</Text>
           )}
+        </View>
+
+        {/* نام */}
+        <View style={styles.field}>
+          <Controller
+            control={control}
+            name="name"
+            defaultValue={currentName}
+            render={({ field: { value, onChange } }) => (
+              <CustomInput
+                borderRadius={ms(15)}
+                width={ms(320)}
+                height={ms(50)}
+                style={{ backgroundColor: COLORS.inputBg2 }}
+                value={value}
+                onChangeText={onChange}
+                placeholder="نام:"
+                inputStyle={styles.inputSmall}
+              />
+            )}
+          />
         </View>
 
         {/* جنسیت */}
