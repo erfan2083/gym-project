@@ -5,7 +5,8 @@ import {
   createTrainerProfile,
   uploadCertificate,
   handleCertificateUpload,
-  getMyTrainerProfile
+  getMyTrainerProfile,
+  updateTrainerProfile
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -25,6 +26,8 @@ trainerRouter.post("/upload-certificate",
 
 
 trainerRouter.get("/getTrainerPublicProfile", authMiddleware, getMyTrainerProfile);
+
+trainerRouter.put("/updateTrainerProfile", authMiddleware, updateTrainerProfile);
 
 
 export default trainerRouter;

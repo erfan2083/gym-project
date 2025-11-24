@@ -89,3 +89,7 @@ export const getMyTrainerProfile = async (trainerUserId) => {
   const res = await api.get("/api/trainer/getTrainerPublicProfile");
   return res.data; // { userId, fullName, avatarUrl, ... }
 };
+
+
+export const updateTrainerProfile = (payload) =>
+  api.put("/api/trainer/updateTrainerProfile", payload);

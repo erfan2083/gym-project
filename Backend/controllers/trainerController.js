@@ -235,3 +235,118 @@ export const getMyTrainerProfile = async (req, res) => {
       .json({ message: "خطای سرور در گرفتن پروفایل مربی" });
   }
 };
+
+
+
+export const updateTrainerProfile = async (req, res) => {
+  try {
+    const userId = req.user?.id; // از JWT
+    if (!userId) {
+      return res.status(401).json({ message: "احراز هویت انجام نشده است" });
+    }
+
+    const {
+      name,                // 👈 اسم کامل برای جدول User.full_name
+      username,
+      gender,
+      birthDate,
+      province,
+      city,
+      bio,
+      contactPhone,
+      telegramUrl,
+      instagramUrl,
+      specialtyIds = [],
+      certificateImageUrl,
+    } = req.body;
+
+    await pool.query("BEGIN");
+
+    // 1) آپدیت نام در جدول User اگر پاس شده بود
+    if (name && name.trim()) {
+      await pool.query(
+        `UPDATE "gym-project"."User"
+         SET full_name = $2
+         WHERE id = $1`,
+        [userId, name.trim()]
+      );
+    }
+
+    // 2) آپدیت trainerprofile
+    const profileResult = await pool.query(
+      `
+      UPDATE "gym-project".trainerprofile
+      SET
+        username             = COALESCE($2, username),
+        bio                  = $3,
+        gender               = $4,
+        date_of_birth        = $5,
+        province             = $6,
+        city                 = $7,
+        certificate_image_url = COALESCE($8, certificate_image_url),
+        contact_phone        = $9,
+        telegram_url         = $10,
+        instagram_url        = $11
+      WHERE user_id = $1
+      RETURNING id, user_id, username, bio, gender, date_of_birth,
+                province, city, certificate_image_url,
+                contact_phone, telegram_url, instagram_url;
+      `,
+      [
+        userId,
+        username?.trim() || null,
+        bio || null,
+        gender || null,
+        birthDate || null,
+        province || null,
+        city || null,
+        certificateImageUrl || null,
+        contactPhone || null,
+        telegramUrl || null,
+        instagramUrl || null,
+      ]
+    );
+
+    if (profileResult.rowCount === 0) {
+      await pool.query("ROLLBACK");
+      return res.status(404).json({ message: "پروفایل مربی پیدا نشد" });
+    }
+
+    const profile = profileResult.rows[0];
+
+    // 3) مدیریت تخصص‌ها (trainer_specialty)
+    if (Array.isArray(specialtyIds)) {
+      // اول پاک کن
+      await pool.query(
+        `DELETE FROM "gym-project".trainer_specialty
+         WHERE trainer_profile_id = $1`,
+        [profile.id]
+      );
+
+      // دوباره ثبت کن
+      for (const specId of specialtyIds) {
+        await pool.query(
+          `
+          INSERT INTO "gym-project".trainer_specialty(trainer_profile_id, specialty_id)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING;
+          `,
+          [profile.id, specId]
+        );
+      }
+    }
+
+    await pool.query("COMMIT");
+
+    return res.json({
+      message: "پروفایل با موفقیت به‌روزرسانی شد",
+      profile,
+    });
+  } catch (err) {
+    console.error("updateTrainerProfile error:", err);
+    await pool.query("ROLLBACK");
+    return res
+      .status(500)
+      .json({ message: "خطا در به‌روزرسانی پروفایل", error: err.message });
+  }
+};
