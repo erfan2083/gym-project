@@ -33,7 +33,6 @@ import {
   getSpecialties,
   uploadCertificate,
 } from "../../../api/trainer";
-import { useProfileStore } from "../../store/profileStore";
 import { uploadAvatar } from "../../../api/user";
 
 // ---------- داده‌های ایران (استان / شهر) ----------
@@ -204,18 +203,12 @@ const isImageFile = (file) => {
 
 // ---------- صفحه اصلی ----------
 
-export default function ProfileFormScreen({ navigation, route }) {
-  const fullNameFromRoute =
-    route?.params?.fullName ||
-    route?.params?.full_name ||
-    route?.params?.name ||
-    "";
+export default function ProfileFormScreen({ navigation}) {
 
   const [avatarUri, setAvatarUri] = useState(null);
   const [certificateFile, setCertificateFile] = useState(null);
   const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
 
-  const setProfile = useProfileStore((state) => state.setProfile);
 
   const {
     control,
@@ -423,6 +416,13 @@ export default function ProfileFormScreen({ navigation, route }) {
       const provinceFa =
         PROVINCES.find((p) => p.id === data.province)?.name || "";
 
+      
+      const specialtyIds = Array.isArray(data.specialty)
+        ? data.specialty.map((id) => Number(id))
+        : data.specialty
+        ? [Number(data.specialty)]
+        : [];
+
       const payload = {
         username: data.username.trim(),
         gender,
@@ -433,35 +433,12 @@ export default function ProfileFormScreen({ navigation, route }) {
         contactPhone: data.phone || null,
         telegramUrl: data.telegram || null,
         instagramUrl: data.instagram || null,
-        specialtyIds: data.specialty ? [Number(data.specialty)] : [],
+        specialtyIds,
         certificateImageUrl: certUrl,
       };
 
       const res = await createTrainerProfile(payload);
       console.log("Trainer profile created =>", res?.data || res);
-
-      // ۴) ذخیره‌ی پروفایل لوکال برای تب پروفایل
-      setProfile({
-        username: data.username.trim(),
-        name: currentName,
-        city: data.city || "",
-        avatarUri: avatarUrl || avatarUri || null,
-
-        specialties: Array.isArray(data.specialty)
-          ? data.specialty
-              .map((id) => {
-                const item = specialtyOptions.find((s) => s.value === id);
-                return item?.label || null;
-              })
-              .filter(Boolean)
-          : specialtiesRaw || [],
-
-        description: data.description || "",
-        phone: data.phone || "",
-        instagram: data.instagram || "",
-        telegram: data.telegram || "",
-        certificateImageUrl: certUrl,
-      });
 
       Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅", [
         {

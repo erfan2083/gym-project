@@ -189,3 +189,49 @@ export const handleCertificateUpload = async (req, res) => {
   });
   res.status(201).json({ url: result.secure_url });
 };
+
+
+// گرفتن پروفایل پابلیک مربی با user_id
+export const getMyTrainerProfile = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "احراز هویت انجام نشده است" });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_public_profile($1)',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "پروفایل مربی برای این کاربر یافت نشد" });
+    }
+
+    const row = result.rows[0];
+
+    return res.json({
+      userId: row.user_id,
+      fullName: row.full_name,
+      avatarUrl: row.avatar_url,
+      username: row.username,
+      gender: row.gender,
+      birthDate: row.date_of_birth,
+      province: row.province,
+      city: row.city,
+      bio: row.bio,
+      certificateImageUrl: row.certificate_image_url,
+      contactPhone: row.contact_phone,
+      telegramUrl: row.telegram_url,
+      instagramUrl: row.instagram_url,
+      specialties: row.specialties || [],
+    });
+  } catch (err) {
+    console.error("getMyTrainerProfile error:", err);
+    return res
+      .status(500)
+      .json({ message: "خطای سرور در گرفتن پروفایل مربی" });
+  }
+};

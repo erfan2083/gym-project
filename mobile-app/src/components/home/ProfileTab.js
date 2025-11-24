@@ -1,5 +1,5 @@
 // src/components/home/ProfileTab.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Pressable,
   Linking,
   Modal,
+  ActivityIndicator
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
@@ -21,12 +22,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import InstaIcon from "../ui/Instaicon";
+import { getMyTrainerProfile } from "../../../api/trainer.js";
 
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
-  const navigation = useNavigation(); // ⬅️ برای ناوبری به فرم ادیت
-
-  const [certificateModalVisible, setCertificateModalVisible] = useState(false);
+  const setProfile = useProfileStore((state) => state.setProfile);
 
   const name = profile?.name || profile?.username || "";
   const username = profile?.username || "";
@@ -37,7 +37,59 @@ export default function ProfileTab() {
   const phone = profile?.phone || "";
   const instagram = profile?.instagram || "";
   const telegram = profile?.telegram || "";
-  const certificateImageUrl = profile?.certificateImageUrl || null; // ⬅️ از استور
+  const certificateImageUrl = profile?.certificateImageUrl || null;
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const navigation = useNavigation(); // ⬅️ برای ناوبری به فرم ادیت
+
+  const [certificateModalVisible, setCertificateModalVisible] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await getMyTrainerProfile();
+
+        if (!isMounted) return;
+
+        const mapped = {
+          username: data.username,
+          name: data.fullName || data.username || "",
+          city: data.city || "",
+          avatarUri: data.avatarUrl || null,
+          specialties: Array.isArray(data.specialties) ? data.specialties : [],
+          description: data.bio || "",
+          phone: data.contactPhone || "",
+          instagram: data.instagramUrl || "",
+          telegram: data.telegramUrl || "",
+          certificateImageUrl: data.certificateImageUrl || null,
+        };
+
+        setProfile(mapped);
+      } catch (e) {
+        if (!isMounted) return;
+        setError(
+          e?.response?.data?.message ||
+            e.message ||
+            "خطا در گرفتن پروفایل مربی"
+        );
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [setProfile]);
 
   // ✅ حیطه تخصصی: هم آرایه، هم رشته‌ی کاما/ویرگول/خط‌جدید جداشده رو ساپورت کن
   let specialties = [];
@@ -83,7 +135,24 @@ export default function ProfileTab() {
     navigation.navigate("ProfileEdit");
   };
 
+  if (loading && !profile?.username) {
   return (
+    <View style={styles.center}>
+      <ActivityIndicator size="small" color={COLORS.primary} />
+    </View>
+  );
+}
+
+if (error && !profile?.username) {
+  return (
+    <View style={styles.center}>
+      <Text style={{ color: COLORS.danger }}>{error}</Text>
+    </View>
+  );
+}
+
+  return (
+    
     <View style={styles.container}>
       {/* هدر بالا */}
       <View style={styles.header}>
@@ -443,4 +512,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: ms(8),
   },
+  center: {
+  flex: 1,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: COLORS.bg,
+  },
+  contactBtnDisabled: {
+    opacity: 0.4,
+  }
 });
