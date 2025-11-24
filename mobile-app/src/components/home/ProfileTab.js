@@ -12,6 +12,7 @@ import {
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
+import { useNavigation } from "@react-navigation/native"; // ⬅️ اضافه شد
 
 import TelegramIcon from "../ui/Telegramicon";
 import TamasIcon from "../ui/Tamas";
@@ -23,6 +24,7 @@ import InstaIcon from "../ui/Instaicon";
 
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
+  const navigation = useNavigation(); // ⬅️ برای ناوبری به فرم ادیت
 
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
 
@@ -76,15 +78,32 @@ export default function ProfileTab() {
     Linking.openURL(url).catch(() => {});
   };
 
+  const handleEditPress = () => {
+    // 👇 اسم روت رو با چیزی که تو ناوبری‌ات برای فرم پروفایل گذاشتی یکی کن
+    navigation.navigate("ProfileEdit");
+  };
+
   return (
     <View style={styles.container}>
       {/* هدر بالا */}
       <View style={styles.header}>
+        {/* آیکون ادیت بالا سمت چپ */}
+        <Pressable
+          style={styles.editButton}
+          onPress={handleEditPress}
+          hitSlop={8}
+        >
+          <Feather name="edit-2" size={ms(18)} color={COLORS.white} />
+        </Pressable>
+
         <View style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
+            <View
+              className="avatarPlaceholder"
+              style={styles.avatarPlaceholder}
+            >
               <FontAwesome5
                 name="user-alt"
                 size={ms(42)}
@@ -260,6 +279,13 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: ms(30),
     marginTop: ms(40),
+  },
+  editButton: {
+    position: "absolute",
+    left: ms(-10),
+    top: 0,
+    padding: ms(8),
+    zIndex: 10,
   },
   avatarWrapper: {
     width: ms(110),

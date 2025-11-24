@@ -49,30 +49,31 @@ export default function SignupScreen({ route, navigation }) {
     return okRole && okUser && okPair;
   }, [role, user, pass, repass]);
 
-  const onSubmit = async () => {
-    if (!valid || loading) return;
-    setMsg("");
-    setLoading(true);
-    try {
-      const { user: created } = await signupComplete({
-        signup_token,
-        full_name: user.trim(),
-        password: pass,
-        role,
-      });
-      if (created?.role === "coach") {
-        navigation.replace("ProfileForm", {
-          fullName: created?.full_name || user.trim(),
-            });
-      } else {
-        navigation.replace("Home");
-      }
-    } catch (e) {
-      setMsg(e?.response?.data?.message || e.message || "خطا در تکمیل ثبت‌نام");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const onSubmit = navigation.navigate("Home");
+  // async () => {
+  //   if (!valid || loading) return;
+  //   setMsg("");
+  //   setLoading(true);
+  //   try {
+  //     const { user: created } = await signupComplete({
+  //       signup_token,
+  //       full_name: user.trim(),
+  //       password: pass,
+  //       role,
+  //     });
+  //     if (created?.role === "coach") {
+  //       navigation.replace("ProfileForm", {
+  //         fullName: created?.full_name || user.trim(),
+  //           });
+  //     } else {
+  //       navigation.replace("Home");
+  //     }
+  //   } catch (e) {
+  //     setMsg(e?.response?.data?.message || e.message || "خطا در تکمیل ثبت‌نام");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>

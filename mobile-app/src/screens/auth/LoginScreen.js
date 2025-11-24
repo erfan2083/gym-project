@@ -150,7 +150,7 @@ export default function LoginScreen({ navigation }) {
               <CustomInput
                 value={pass}
                 onChangeText={setPass}
-                placeholder={fPass ? "" : "رمز عبور:"}
+                placeholder={fPass ? "" : ":رمز عبور"}
                 secureTextEntry={!showPass}
                 onFocus={() => setFPass(true)}
                 onBlur={() => setFPass(false)}

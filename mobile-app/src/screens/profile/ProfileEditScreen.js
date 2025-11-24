@@ -1,4 +1,4 @@
-// src/screens/profile/ProfileFormScreen.js
+// src/screens/profile/ProfileEditScreen.js
 import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
@@ -33,11 +33,10 @@ import {
   getSpecialties,
   uploadCertificate,
 } from "../../../api/trainer";
-import { useProfileStore } from "../../store/profileStore";
 import { uploadAvatar } from "../../../api/user";
+import { useProfileStore } from "../../store/profileStore";
 
 // ---------- داده‌های ایران (استان / شهر) ----------
-
 const PROVINCES = iranLocations.map((p) => ({
   id: p["province-en"],
   name: p["province-fa"],
@@ -50,7 +49,6 @@ const CITIES_BY_PROVINCE = iranLocations.reduce((acc, p) => {
 }, {});
 
 // ---------- تاریخ تولد ----------
-
 const years = Array.from({ length: 80 }, (_, i) => 1404 - i);
 const persianMonths = [
   "فروردین",
@@ -69,7 +67,6 @@ const persianMonths = [
 const days = Array.from({ length: 31 }, (_, i) => i + 1);
 
 // ---------- ولیدیشن ----------
-
 const schema = yup.object({
   username: yup.string().required("نام کاربری الزامی است"),
   phone: yup
@@ -83,7 +80,6 @@ const schema = yup.object({
 });
 
 // ---------- SelectField ----------
-
 function SelectField({
   value,
   onChange,
@@ -111,7 +107,7 @@ function SelectField({
     setVisible(false);
   };
 
-  // 👇 اینجا متن نهایی رو می‌سازیم به شکل «استان: فارس»
+  // نمایش به شکل «استان: فارس»
   let displayText = "";
 
   // اگر مقدار انتخاب نشده باشد → placeholder
@@ -193,7 +189,6 @@ function SelectField({
 }
 
 // ---------- helper برای تشخیص عکس بودن مدرک ----------
-
 const isImageFile = (file) => {
   if (!file) return false;
   const mime = file.mimeType || file.type || "";
@@ -202,20 +197,26 @@ const isImageFile = (file) => {
   return /\.(png|jpe?g|webp|gif)$/i.test(name);
 };
 
-// ---------- صفحه اصلی ----------
+// ---------- صفحه ویرایش ----------
+export default function ProfileEditScreen({ navigation }) {
+  const profile = useProfileStore((state) => state.profile);
+  const setProfile = useProfileStore((state) => state.setProfile);
 
-export default function ProfileFormScreen({ navigation, route }) {
-  const fullNameFromRoute =
-    route?.params?.fullName ||
-    route?.params?.full_name ||
-    route?.params?.name ||
-    "";
+  // چیزهایی که الان تو ProfileTab نشون می‌دی:
+  const currentName = profile?.name || profile?.username || "";
+  const currentUsername = profile?.username || "";
+  const currentCity = profile?.city || "";
+  const specialtiesRaw = profile?.specialties ?? [];
+  const currentDescription = profile?.description || "";
+  const currentPhone = profile?.phone || "";
+  const currentInstagram = profile?.instagram || "";
+  const currentTelegram = profile?.telegram || "";
+  const currentAvatarUri = profile?.avatarUri || null;
+  const currentCertUrl = profile?.certificateImageUrl || null;
 
-  const [avatarUri, setAvatarUri] = useState(null);
+  const [avatarUri, setAvatarUri] = useState(currentAvatarUri);
   const [certificateFile, setCertificateFile] = useState(null);
   const [avatarSheetVisible, setAvatarSheetVisible] = useState(false);
-
-  const setProfile = useProfileStore((state) => state.setProfile);
 
   const {
     control,
@@ -224,19 +225,20 @@ export default function ProfileFormScreen({ navigation, route }) {
     setValue,
     formState: { errors, isSubmitting, isValid },
   } = useForm({
+    // 👇 فیلدها رو با استور پر می‌کنیم
     defaultValues: {
-      username: "",
-      gender: "",
-      birthDay: "",
+      username: currentUsername,
+      gender: "", // فعلاً تو استور نداری
+      birthDay: "", // فعلاً تو استور نداری
       birthMonth: "",
       birthYear: "",
-      specialty: "",
-      province: "",
-      city: "",
-      description: "",
-      phone: "",
-      instagram: "",
-      telegram: "",
+      specialty: "", // از روی label تو useEffect ست می‌کنیم
+      province: "", // فعلاً نگه نداشتی
+      city: currentCity,
+      description: currentDescription,
+      phone: currentPhone,
+      instagram: currentInstagram,
+      telegram: currentTelegram,
       certificate: null,
     },
     resolver: yupResolver(schema),
@@ -250,19 +252,36 @@ export default function ProfileFormScreen({ navigation, route }) {
     { label: "حیطه تخصصی:", value: "" },
   ]);
 
+  // لود تخصص‌ها + مچ کردن با چیزی که تو ProfileTab نمایش داده می‌شه
   useEffect(() => {
     let isMounted = true;
 
     const loadSpecialties = async () => {
       try {
-        const data = await getSpecialties(); // فرض: آرایه مستقیم
+        const data = await getSpecialties();
         const items = (data || []).map((s) => ({
           label: s.name,
           value: String(s.id),
         }));
 
-        if (isMounted) {
-          setSpecialtyOptions([{ label: "حیطه تخصصی:", value: "" }, ...items]);
+        if (!isMounted) return;
+
+        const opts = [{ label: "حیطه تخصصی:", value: "" }, ...items];
+        setSpecialtyOptions(opts);
+
+        // specialty فعلی رو از روی label پیدا می‌کنیم
+        const firstSpecialtyLabel =
+          Array.isArray(specialtiesRaw) && specialtiesRaw.length > 0
+            ? specialtiesRaw[0]
+            : typeof specialtiesRaw === "string"
+            ? specialtiesRaw.split(/[\n,،]+/)[0]?.trim()
+            : "";
+
+        if (firstSpecialtyLabel) {
+          const found = opts.find((o) => o.label === firstSpecialtyLabel);
+          if (found) {
+            setValue("specialty", found.value, { shouldValidate: true });
+          }
         }
       } catch (e) {
         console.log("Error loading specialties:", e);
@@ -274,7 +293,7 @@ export default function ProfileFormScreen({ navigation, route }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [specialtiesRaw, setValue]);
 
   const cityOptions = useMemo(() => {
     if (!selectedProvinceId) return [];
@@ -289,15 +308,9 @@ export default function ProfileFormScreen({ navigation, route }) {
     return result;
   };
 
-  // -------- آواتار با کراپ مثل تلگرام --------
-
-  const openAvatarSheet = () => {
-    setAvatarSheetVisible(true);
-  };
-
-  const closeAvatarSheet = () => {
-    setAvatarSheetVisible(false);
-  };
+  // -------- آواتار --------
+  const openAvatarSheet = () => setAvatarSheetVisible(true);
+  const closeAvatarSheet = () => setAvatarSheetVisible(false);
 
   const pickAvatarFromLibrary = async () => {
     try {
@@ -309,16 +322,14 @@ export default function ProfileFormScreen({ navigation, route }) {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, // 🔥 کراپ داخلی
-        aspect: [1, 1], // مربع
+        allowsEditing: true,
+        aspect: [1, 1],
         quality: 0.8,
       });
 
       if (!result.canceled) {
         const asset = result.assets?.[0];
-        if (asset?.uri) {
-          setAvatarUri(asset.uri);
-        }
+        if (asset?.uri) setAvatarUri(asset.uri);
       }
     } catch (e) {
       console.log("pickAvatarFromLibrary error:", e);
@@ -343,9 +354,7 @@ export default function ProfileFormScreen({ navigation, route }) {
 
       if (!result.canceled) {
         const asset = result.assets?.[0];
-        if (asset?.uri) {
-          setAvatarUri(asset.uri);
-        }
+        if (asset?.uri) setAvatarUri(asset.uri);
       }
     } catch (e) {
       console.log("pickAvatarFromCamera error:", e);
@@ -360,7 +369,6 @@ export default function ProfileFormScreen({ navigation, route }) {
   };
 
   // -------- مدرک مربیگری --------
-
   const pickCertificate = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -388,27 +396,25 @@ export default function ProfileFormScreen({ navigation, route }) {
 
   const onSubmit = async (data) => {
     try {
-      // ۱) آپلود مدرک مربیگری به Cloudinary
-      let certUrl = null;
+      // ۱) آپلود مدرک جدید اگر انتخاب شده
+      let certUrl = currentCertUrl || null;
       if (certificateFile?.uri) {
         const uploadRes = await uploadCertificate(certificateFile);
-        certUrl = uploadRes?.data?.url || null;
+        certUrl = uploadRes?.data?.url || certUrl;
       }
 
-      // ۲) آپلود آواتار (اگر انتخاب شده باشد)
-      let avatarUrl = null;
-      if (avatarUri) {
+      // ۲) آپلود آواتار اگر تغییر کرده باشد
+      let avatarUrl = currentAvatarUri || null;
+      if (avatarUri && avatarUri !== currentAvatarUri) {
         const avatarFile = {
           uri: avatarUri,
           name: `avatar_${Date.now()}.jpg`,
           type: "image/jpeg",
         };
-
         const avatarRes = await uploadAvatar(avatarFile);
-        avatarUrl = avatarRes?.data?.avatarUrl || null;
+        avatarUrl = avatarRes?.data?.avatarUrl || avatarUrl;
       }
 
-      // ۳) بقیه‌ی فیلدها مثل قبل
       const gender =
         !data.gender || data.gender === "other" ? null : data.gender;
 
@@ -437,10 +443,10 @@ export default function ProfileFormScreen({ navigation, route }) {
         certificateImageUrl: certUrl,
       };
 
-      const res = await createTrainerProfile(payload);
-      console.log("Trainer profile created =>", res?.data || res);
+      const res = await createTrainerProfile(payload); // همون API که قبلاً داشتی
+      console.log("Trainer profile updated =>", res?.data || res);
 
-      // ۴) ذخیره‌ی پروفایل لوکال برای تب پروفایل
+      // ۳) آپدیت استور برای ProfileTab
       setProfile({
         username: data.username.trim(),
         name: currentName,
@@ -463,14 +469,14 @@ export default function ProfileFormScreen({ navigation, route }) {
         certificateImageUrl: certUrl,
       });
 
-      Alert.alert("موفق", "پروفایل شما با موفقیت ذخیره شد ✅", [
+      Alert.alert("موفق", "پروفایل شما با موفقیت ویرایش شد ✅", [
         {
-          text: "ادامه",
-          onPress: () => navigation.replace("Signature"),
+          text: "برگشت",
+          onPress: () => navigation.goBack(),
         },
       ]);
     } catch (e) {
-      console.error("Create trainer profile error:", e);
+      console.error("Update trainer profile error:", e);
       const msg =
         e?.response?.data?.message ||
         e?.message ||
@@ -492,19 +498,18 @@ export default function ProfileFormScreen({ navigation, route }) {
   ];
 
   const dayOptions = [
-    { label: "روز", value: "" },
+    { label: "روز:", value: "" },
     ...days.map((d) => ({ label: String(d), value: String(d) })),
   ];
   const monthOptions = [
-    { label: "ماه", value: "" },
+    { label: "ماه:", value: "" },
     ...persianMonths.map((m, i) => ({
       label: m,
       value: String(i + 1),
     })),
   ];
-
   const yearOptions = [
-    { label: "سال", value: "" },
+    { label: "سال:", value: "" },
     ...years.map((y) => ({ label: String(y), value: String(y) })),
   ];
 
@@ -524,9 +529,9 @@ export default function ProfileFormScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         {/* عنوان */}
-        <Text style={styles.title}>اطلاعات اولیه</Text>
+        <Text style={styles.title}>ویرایش اطلاعات</Text>
 
-        {/* آواتار */}
+        {/* آواتار (فقط آیکن ادیت) */}
         <Pressable onPress={openAvatarSheet} style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
@@ -544,11 +549,11 @@ export default function ProfileFormScreen({ navigation, route }) {
           )}
           <View style={styles.avatarPlus}>
             <FontAwesome
-              name="plus"
-              size={27}
+              name="edit"
+              size={22}
               color={COLORS.white}
               style={{
-                transform: [{ translateY: ms(1) }],
+                transform: [{ translateY: ms(1) }, { translateX: ms(2) }],
               }}
             />
           </View>
@@ -773,6 +778,25 @@ export default function ProfileFormScreen({ navigation, route }) {
                   </Text>
                 </View>
               </>
+            ) : currentCertUrl ? (
+              <>
+                <Image
+                  source={{ uri: currentCertUrl }}
+                  style={styles.certificatePreviewImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.certificateInfoRow}>
+                  <Feather
+                    name="file-text"
+                    size={24}
+                    color={COLORS.text}
+                    style={{ marginLeft: ms(8) }}
+                  />
+                  <Text style={styles.certificateFileName} numberOfLines={1}>
+                    مدرک آپلود شده
+                  </Text>
+                </View>
+              </>
             ) : (
               <>
                 <Feather
@@ -789,7 +813,7 @@ export default function ProfileFormScreen({ navigation, route }) {
               </>
             )}
           </Pressable>
-          {certificateFile && (
+          {(certificateFile || currentCertUrl) && (
             <Pressable onPress={clearCertificate} style={styles.clearCertBtn}>
               <Feather name="trash-2" size={14} color={COLORS.danger} />
               <Text style={styles.clearCertText}>حذف مدرک</Text>
@@ -870,14 +894,14 @@ export default function ProfileFormScreen({ navigation, route }) {
         </View>
 
         <PrimaryButton
-          title={isSubmitting ? "در حال ذخیره..." : "ذخیره"}
+          title={isSubmitting ? "در حال ذخیره..." : "ذخیره تغییرات"}
           onPress={handleSubmit(onSubmit)}
           disabled={isSaveDisabled}
           textColor={isSaveDisabled ? "#2C2727" : COLORS.white}
           style={styles.saveButton}
         />
 
-        {/* bottom sheet ساده برای آواتار */}
+        {/* bottom sheet آواتار */}
         <Modal
           visible={avatarSheetVisible}
           transparent
@@ -947,7 +971,6 @@ export default function ProfileFormScreen({ navigation, route }) {
 }
 
 // ---------- استایل‌ها ----------
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -1140,35 +1163,30 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    width: ms(320), // ❗ هم‌عرض بقیه فیلدها
+    width: ms(320),
   },
-
   birthLabel: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.text,
     marginLeft: ms(8),
   },
-
   birthInlineRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
   },
-
   birthDropdown: {
     backgroundColor: "transparent",
     height: ms(48),
     paddingHorizontal: 0,
     minWidth: ms(55),
-    width: "auto", // ❗ مهم: عرض فقط به اندازه متن
+    width: "auto",
     justifyContent: "center",
   },
-
   birthText: {
     fontSize: ms(12),
     textAlignVertical: "center",
   },
-
   birthSeparator: {
     marginHorizontal: ms(4),
     color: COLORS.text,
