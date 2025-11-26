@@ -61,7 +61,7 @@ export default function SignupScreen({ route, navigation }) {
         role,
       });
       if (created?.role === "coach") {
-        navigation.replace("TrainerProfileSetup");
+        navigation.replace("ProfileForm")
       } else {
         navigation.replace("Home");
       }
