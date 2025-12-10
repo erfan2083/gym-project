@@ -12,6 +12,7 @@ import ProfileFormScreen from "../screens/profile/ProfileFormScreen";
 import HomeScreen from "../screens/home/HomeScreen";
 import SignatureScreen from "../screens/profile/SignatureScreen";
 import ProfileEditScreen from "../screens/profile/ProfileEditScreen";
+import ReviewsScreen from "../screens/profile/ReviewsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -33,6 +34,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="ProfileEdit"
           component={ProfileEditScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ReviewsScreen"
+          component={ReviewsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
