@@ -91,5 +91,19 @@ export const getMyTrainerProfile = async (trainerUserId) => {
 };
 
 
+
 export const updateTrainerProfile = (payload) =>
   api.put("/api/trainer/updateTrainerProfile", payload);
+
+
+
+export const getTrainerRatingSummary = async (trainerId) => {
+  const res = await api.get(`/api/user/trainer/${trainerId}/rating`);
+  return res.data;
+};
+
+
+export const getTrainerReviews = async (trainerId) => {
+  const res = await api.get(`/api/user/trainer/${trainerId}/reviews`);
+  return res.data;
+};

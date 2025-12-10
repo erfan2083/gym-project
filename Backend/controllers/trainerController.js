@@ -354,7 +354,7 @@ export const updateTrainerProfile = async (req, res) => {
 
 // GET /trainers/:trainerId/rating
 export const getTrainerRating = async (req, res) => {
-  const { trainerId } = req.user?.id; 
+  const { trainerId } = req.params;
 
   try {
     const { rows } = await pool.query(
@@ -376,7 +376,7 @@ export const getTrainerRating = async (req, res) => {
 
 // GET /trainers/:trainerId/reviews
 export const getTrainerReviews = async (req, res) => {
-  const { trainerId } = req.user?.id; 
+  const { trainerId } = req.params;
 
   try {
     const { rows } = await pool.query(

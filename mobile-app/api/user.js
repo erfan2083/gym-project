@@ -17,3 +17,11 @@ export const uploadAvatar = (file) => {
     },
   });
 };
+
+
+export const createTrainerReview = (trainerId, { rating, comment }) => {
+  return api.post(`/api/user/trainers/${trainerId}/reviews`, {
+    rating,
+    comment: comment || null,
+  });
+};
