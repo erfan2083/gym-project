@@ -14,7 +14,7 @@ import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
 import { useNavigation } from "@react-navigation/native"; // ⬅️ اضافه شد
-
+import RatingStars from "../ui/RatingStars";
 import TelegramIcon from "../ui/Telegramicon";
 import TamasIcon from "../ui/Tamas";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -38,6 +38,8 @@ export default function ProfileTab() {
   const instagram = profile?.instagram || "";
   const telegram = profile?.telegram || "";
   const certificateImageUrl = profile?.certificateImageUrl || null;
+  const rating = profile?.rating ?? 4.5;
+  const ratingCount = profile?.ratingCount ?? 0;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,6 +71,8 @@ export default function ProfileTab() {
           instagram: data.instagramUrl || "",
           telegram: data.telegramUrl || "",
           certificateImageUrl: data.certificateImageUrl || null,
+          rating: data.averageRate || 4.5,
+          ratingCount: data.reviewCount || 0,
         };
 
         setProfile(mapped);
@@ -162,6 +166,15 @@ export default function ProfileTab() {
           <Feather name="edit-2" size={ms(18)} color={COLORS.white} />
         </Pressable>
 
+        {/* ⭐ امتیاز زیر دکمه ادیت */}
+        <View style={styles.starsUnderEdit}>
+          <Text style={styles.ratingNumber}>
+            {rating ? rating.toFixed(1) : "0.0"}
+          </Text>
+          <RatingStars rating={rating} size={ms(16)} />
+        </View>
+
+        {/* بقیه هدر همان قبلی */}
         <View style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
@@ -207,6 +220,31 @@ export default function ProfileTab() {
         </View>
       </View>
 
+      <View style={styles.ratingAndButtonRow}>
+        {/* فقط دکمه‌ی رفتن به صفحه نظرات */}
+        <Pressable
+          onPress={() =>
+            navigation.navigate("ReviewsScreen", {
+              rating,
+              ratingCount,
+              name,
+              username,
+              city,
+              avatarUri,
+            })
+          }
+          style={styles.reviewsButton}
+        >
+          <Text style={styles.reviewsButtonText}>نظرات</Text>
+          <AntDesign
+            name="arrowleft"
+            size={ms(18)}
+            color={COLORS.white}
+            style={{ marginLeft: ms(6) }}
+          />
+        </Pressable>
+      </View>
+
       {/* حیطه تخصصی */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>حیطه تخصصی:</Text>
@@ -224,7 +262,6 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* 🔥 مدرک مربیگری (بین حیطه تخصصی و توضیحات) */}
       {/* 🔥 مدرک مربیگری (بین حیطه تخصصی و توضیحات) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>مدرک مربیگری:</Text>
@@ -532,5 +569,38 @@ const styles = StyleSheet.create({
   },
   contactBtnDisabled: {
     opacity: 0.4,
+  },
+  ratingAndButtonRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: ms(10),
+  },
+  ratingNumber: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(13),
+    color: COLORS.primary,
+    marginRight: ms(6),
+  },
+  reviewsButton: {
+    backgroundColor: "#444",
+    paddingVertical: ms(6),
+    paddingHorizontal: ms(10),
+    transform: [{ translateY: ms(-33) }],
+    borderRadius: ms(20),
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginRight: ms(12),
+  },
+  reviewsButtonText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(12),
+    color: COLORS.white,
+  },
+  starsUnderEdit: {
+    position: "absolute",
+    left: ms(-15),
+    top: ms(43),
+    flexDirection: "row-reverse",
+    alignItems: "center",
   },
 });
