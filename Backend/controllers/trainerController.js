@@ -355,7 +355,6 @@ export const updateTrainerProfile = async (req, res) => {
 // GET /trainers/:trainerId/rating
 export const getTrainerRating = async (req, res) => {
   const { trainerId } = req.params;
-  console.log(req.params);
 
   try {
     const result  = await pool.query(
