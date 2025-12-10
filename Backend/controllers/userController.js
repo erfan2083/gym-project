@@ -58,3 +58,38 @@ export async function updateUserAvatar(req, res) {
     });
   }
 }
+
+
+
+export const addReview = async (req, res) => {
+  const traineeId = req.user.id;             // از JWT
+  const { trainerId } = req.params;
+  const { rating, comment } = req.body;
+
+  if (!rating) {
+    return res.status(400).json({ message: "rating is required" });
+  }
+
+  try {
+    await pool.query(
+      'CALL "gym-project".add_review($1, $2, $3, $4)',
+      [traineeId, trainerId, rating, comment || null]
+    );
+
+    res.status(201).json({ message: "Review submitted successfully" });
+  } catch (err) {
+    console.error(err);
+
+    if (err.constraint === "review_trainee_trainer_unique") {
+      return res.status(400).json({
+        message: "You have already submitted a review for this trainer",
+      });
+    }
+
+    if (err.message.includes("Rating must be between")) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    res.status(500).json({ message: "Server error" });
+  }
+};

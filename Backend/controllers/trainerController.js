@@ -350,3 +350,43 @@ export const updateTrainerProfile = async (req, res) => {
       .json({ message: "خطا در به‌روزرسانی پروفایل", error: err.message });
   }
 };
+
+
+// GET /trainers/:trainerId/rating
+export const getTrainerRating = async (req, res) => {
+  const { trainerId } = req.user?.id; 
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_rating_summary($1)',
+      [trainerId]
+    );
+
+    const summary = rows[0] || { avg_rating: 0, review_count: 0 };
+
+    res.json({
+      avgRating: Number(summary.avg_rating),
+      reviewCount: summary.review_count,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET /trainers/:trainerId/reviews
+export const getTrainerReviews = async (req, res) => {
+  const { trainerId } = req.user?.id; 
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_reviews($1)',
+      [trainerId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
