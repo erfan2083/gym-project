@@ -16,7 +16,7 @@ userRouter.post("/avatar",
 
 
 userRouter.post(
-  "/reviews",
+  "/:trainerID/reviews",
   authMiddleware,          // باید لاگین باشه
   addReview
 );

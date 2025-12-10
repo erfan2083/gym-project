@@ -9,6 +9,7 @@ import {
   updateTrainerProfile,
   getTrainerRating,
   getTrainerReviews
+  
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -33,15 +34,13 @@ trainerRouter.put("/updateTrainerProfile", authMiddleware, updateTrainerProfile)
 
 
 trainerRouter.get(
-  "/rating",
-  authMiddleware,
+  "/:trainerId/rating",
   getTrainerRating
 );
 
 // گرفتن لیست نظرات مربی
 trainerRouter.get(
-  "/reviews",
-  authMiddleware,
+  "/:trainerId/reviews",
   getTrainerReviews
 );
 

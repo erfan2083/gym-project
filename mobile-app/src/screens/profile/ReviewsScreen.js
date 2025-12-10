@@ -1,5 +1,5 @@
 // src/screens/profile/ReviewsScreen.js
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Image } from "react-native";
 import { ms } from "react-native-size-matters";
 import { useRoute } from "@react-navigation/native";
@@ -10,53 +10,101 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 
+// ✅ API گرفتن نظرات مربی
+import { getTrainerReviews } from "../../../api/trainer.js";
+
 export default function ReviewsScreen() {
   const route = useRoute();
+
+  // پارامترهایی که از ProfileTab پاس داده می‌شن
   const {
-    rating: ratingFromRoute = 4.5, // فقط fallback
+    rating: ratingFromRoute = 5,        // امتیاز کلی که از پروفایل می‌آد
+    ratingCount: ratingCountFromRoute = 5, // تعداد نظرات کلی
     name = "نام ثبت نشده",
     username,
     city,
     avatarUri,
-    reviews: reviewsFromRoute,
+    trainerId, // 👈 خیلی مهم برای گرفتن نظرات از API
   } = route.params || {};
 
-  // اگر از route چیزی نیاید، دمو
-  const demoReviews = [
-    { id: 1, customerName: "نام مشتری", score: 4.5, date: "1402/10/12" },
-    { id: 2, customerName: "نام مشتری", score: 3.0, date: "1402/09/25" },
-    { id: 3, customerName: "نام مشتری", score: 5.0, date: "1402/08/03" },
-    { id: 4, customerName: "نام مشتری", score: 4.0, date: "1402/07/19" },
-  ];
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const reviews =
-    Array.isArray(reviewsFromRoute) && reviewsFromRoute.length
-      ? reviewsFromRoute
-      : demoReviews;
+  // گرفتن نظرات واقعی از API
+  useEffect(() => {
+    let isMounted = true;
 
-  // محاسبه‌ی مجموع امتیازها و میانگین از روی خود کامنت‌ها
-  let totalPoints = 0;
-  let ratedCount = 0;
+    const fetchReviews = async () => {
+      if (!trainerId) {
+        console.log("No trainerId provided for ReviewsScreen");
+        return;
+      }
 
-  reviews.forEach((r) => {
-    const s =
-      typeof r.score === "number"
-        ? r.score
-        : typeof r.rating === "number"
-        ? r.rating
-        : null;
+      try {
+        setLoading(true);
+        const data = await getTrainerReviews(trainerId);
 
-    if (typeof s === "number") {
-      totalPoints += s;
-      ratedCount += 1;
+        if (!isMounted) return;
+
+        if (Array.isArray(data)) {
+          setReviews(data);
+        } else {
+          setReviews([]);
+        }
+      } catch (e) {
+        if (!isMounted) return;
+        console.log("Error loading trainer reviews:", e?.message || e);
+        setReviews([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchReviews();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [trainerId]);
+
+  // اگر از سرور نظرات اومده باشه، از همونا استفاده می‌کنیم
+  const reviewsCount =
+    (Array.isArray(reviews) && reviews.length) || ratingCountFromRoute || 0;
+
+  // اگر از خود لیست نظرات بتونیم میانگین حساب کنیم، از اون استفاده می‌کنیم
+  let computedAverage = null;
+
+  if (Array.isArray(reviews) && reviews.length > 0) {
+    let sum = 0;
+    let count = 0;
+
+    reviews.forEach((r) => {
+      const s =
+        typeof r.score === "number"
+          ? r.score
+          : typeof r.rating === "number"
+          ? r.rating
+          : null;
+
+      if (typeof s === "number") {
+        sum += s;
+        count += 1;
+      }
+    });
+
+    if (count > 0) {
+      computedAverage = sum / count;
     }
-  });
+  }
 
-  const reviewsCount = reviews.length; // تعداد کل نظرها (چه امتیاز داشته باشند چه نه)
-  const averageRating = ratedCount ? totalPoints / ratedCount : ratingFromRoute;
-
+  // امتیاز نهایی که نمایش داده می‌شه:
+  // اگر از روی لیست نظرات محاسبه شده بود => اون
+  // وگرنه => امتیازی که از route (پروفایل) اومده
+  const averageRating = computedAverage ?? ratingFromRoute;
   const ratingText = averageRating ? averageRating.toFixed(1) : "0.0";
-  const totalPointsRounded = Math.round(totalPoints);
+
+  // برای نمایش "چند امتیاز"
+  const totalPointsRounded = Math.round(averageRating * reviewsCount);
 
   return (
     <ScrollView
@@ -98,80 +146,90 @@ export default function ReviewsScreen() {
         </View>
       </View>
 
-      {/* ---------- بخش امتیاز کلی مثل فیگما ---------- */}
+      {/* ---------- بخش امتیاز کلی ---------- */}
       <View style={styles.ratingSummary}>
-        {/* ستاره‌ها و متن زیرش سمت چپ */}
         <View style={styles.ratingLeft}>
-          {/* ستاره‌ها براساس میانگین واقعی */}
           <RatingStars rating={averageRating} size={ms(16)} />
 
-          {/* مجموع کل امتیازها و تعداد نظرها */}
           <Text style={styles.ratingMeta}>
             {totalPointsRounded} امتیاز، {reviewsCount} نظر
           </Text>
         </View>
 
-        {/* عدد بزرگ سمت راست: میانگین ریتینگ */}
         <Text style={styles.bigRating}>{ratingText}</Text>
       </View>
 
-      {/* تیتر "نظر مشتریان" با خط زیر 85% عرض صفحه */}
+      {/* تیتر "نظر مشتریان" */}
       <View style={styles.sectionTitleWrapper}>
         <Text style={styles.sectionTitle}>نظر مشتریان</Text>
         <View style={styles.sectionUnderline} />
       </View>
 
       {/* ---------- کارت‌های نظرات ---------- */}
-      {reviews.map((r, index) => {
-        const customerName = r.customerName || r.name || "نام مشتری";
-        const date = r.date || r.createdAt || "";
-        const score =
-          typeof r.score === "number"
-            ? r.score
-            : typeof r.rating === "number"
-            ? r.rating
-            : 0;
-        const comment = r.comment || r.text || "";
+      {Array.isArray(reviews) && reviews.length > 0 ? (
+        reviews.map((r, index) => {
+          const customerName = r.trainee_name || r.customerName || r.name || "نام مشتری";
+          const date = r.created_at || r.date || r.createdAt || "";
+          const score =
+            typeof r.score === "number"
+              ? r.score
+              : typeof r.rating === "number"
+              ? r.rating
+              : 0;
+          const comment = r.comment || r.text || "";
 
-        return (
-          <View key={r.id ?? index} style={styles.reviewCard}>
-            {/* ردیف بالا: نام مشتری - تاریخ / امتیاز */}
-            <View style={styles.reviewTopRow}>
-              <View style={styles.reviewNameDate}>
-                <Text style={styles.reviewName}>{customerName}</Text>
-                {date ? <Text style={styles.reviewDate}> - {date}</Text> : null}
+          return (
+            <View key={r.id ?? index} style={styles.reviewCard}>
+              <View style={styles.reviewTopRow}>
+                <View style={styles.reviewNameDate}>
+                  <Text style={styles.reviewName}>{customerName}</Text>
+                  {date ? (
+                    <Text style={styles.reviewDate}> - {date}</Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.reviewScoreWrapper}>
+                  <AntDesign
+                    name="star"
+                    size={ms(16)}
+                    color={COLORS.primary}
+                    style={{ marginLeft: ms(4) }}
+                  />
+                  <Text style={styles.reviewScoreLabel}>امتیاز</Text>
+                  {typeof score === "number" && score > 0 ? (
+                    <Text style={styles.reviewScoreValue}>
+                      {score.toFixed(1)}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
 
-              {/* امتیاز این نظر (ستاره + عدد کوچک) */}
-              <View style={styles.reviewScoreWrapper}>
-                <AntDesign
-                  name="star"
-                  size={ms(16)}
-                  color={COLORS.primary}
-                  style={{ marginLeft: ms(4) }}
-                />
-                <Text style={styles.reviewScoreLabel}>امتیاز</Text>
-                {score ? (
-                  <Text style={styles.reviewScoreValue}>
-                    {score.toFixed(1)}
-                  </Text>
-                ) : null}
-              </View>
+              <Text
+                style={[
+                  styles.reviewComment,
+                  !comment && styles.reviewCommentPlaceholder,
+                ]}
+                numberOfLines={2}
+              >
+                {comment || "متن نظر مشتری بعد از ثبت اینجا نمایش داده می‌شود."}
+              </Text>
             </View>
-
-            {/* متن نظر یا placeholder اگر هنوز نظری ثبت نشده */}
-            <Text
-              style={[
-                styles.reviewComment,
-                !comment && styles.reviewCommentPlaceholder,
-              ]}
-              numberOfLines={2}
-            >
-              {comment || "متن نظر مشتری بعد از ثبت اینجا نمایش داده می‌شود."}
-            </Text>
-          </View>
-        );
-      })}
+          );
+        })
+      ) : (
+        // اگر هنوز نظری ثبت نشده
+        <Text
+          style={{
+            fontFamily: "Vazirmatn_400Regular",
+            fontSize: ms(12),
+            color: COLORS.text2,
+            textAlign: "center",
+            marginTop: ms(12),
+          }}
+        >
+          هنوز نظری برای این مربی ثبت نشده است.
+        </Text>
+      )}
     </ScrollView>
   );
 }
@@ -184,7 +242,6 @@ const styles = StyleSheet.create({
     paddingTop: ms(32),
   },
 
-  // --- هدر (کپی از پروفایل) ---
   header: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
@@ -247,9 +304,8 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  // --- خلاصه امتیاز ---
   ratingSummary: {
-    flexDirection: "row", // چپ به راست: ستاره‌ها چپ، عدد راست
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: ms(20),
@@ -270,14 +326,12 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  // --- عنوان "نظر مشتریان" ---
   sectionTitleWrapper: {
     alignItems: "center",
     marginBottom: ms(16),
   },
   sectionTitle: {
     transform: [{ translateX: ms(90) }],
-
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(13),
     color: COLORS.primary,
@@ -290,7 +344,6 @@ const styles = StyleSheet.create({
     marginBottom: ms(20),
   },
 
-  // --- کارت‌های نظر ---
   reviewCard: {
     backgroundColor: COLORS.inputBg2,
     borderRadius: ms(16),
@@ -321,8 +374,6 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: COLORS.text2,
   },
-
-  // بلوک امتیاز سمت چپ کارت
   reviewScoreWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -339,8 +390,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginLeft: ms(4),
   },
-
-  // متن نظر / placeholder
   reviewComment: {
     marginTop: ms(4),
     fontFamily: "Vazirmatn_700Bold",
@@ -353,8 +402,6 @@ const styles = StyleSheet.create({
     color: COLORS.text2,
     fontStyle: "italic",
   },
-
-  // متن "نظر" در گوشه راست پایین کارت
   reviewLabelBottom: {
     alignSelf: "flex-end",
     marginTop: ms(4),

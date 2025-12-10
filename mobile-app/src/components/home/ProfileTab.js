@@ -13,7 +13,7 @@ import {
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
-import { useNavigation } from "@react-navigation/native"; // ⬅️ اضافه شد
+import { useNavigation } from "@react-navigation/native";
 import RatingStars from "../ui/RatingStars";
 import TelegramIcon from "../ui/Telegramicon";
 import TamasIcon from "../ui/Tamas";
@@ -22,7 +22,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import InstaIcon from "../ui/Instaicon";
-import { getMyTrainerProfile } from "../../../api/trainer.js";
+import { getMyTrainerProfile, getTrainerRatingSummary } from "../../../api/trainer.js";
 
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
@@ -38,14 +38,17 @@ export default function ProfileTab() {
   const instagram = profile?.instagram || "";
   const telegram = profile?.telegram || "";
   const certificateImageUrl = profile?.certificateImageUrl || null;
-  const rating = profile?.rating ?? 4.5;
+
+  // ✅ rating و ratingCount فقط از API پروفایل مربی
+  const rating =
+    typeof profile?.rating === "number" ? profile.rating : 0;
   const ratingCount = profile?.ratingCount ?? 0;
+  const trainerUserId = profile?.trainerUserId;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const navigation = useNavigation(); // ⬅️ برای ناوبری به فرم ادیت
-
+  const navigation = useNavigation();
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
 
   useEffect(() => {
@@ -57,9 +60,11 @@ export default function ProfileTab() {
         setError("");
 
         const data = await getMyTrainerProfile();
+        const ratingAPI = await getTrainerRatingSummary(data.userId);
 
         if (!isMounted) return;
 
+        // 👇 مپ کردن دقیق فیلدهای API به استور
         const mapped = {
           username: data.username,
           name: data.fullName || data.username || "",
@@ -71,15 +76,21 @@ export default function ProfileTab() {
           instagram: data.instagramUrl || "",
           telegram: data.telegramUrl || "",
           certificateImageUrl: data.certificateImageUrl || null,
-          rating: data.averageRate || 4.5,
-          ratingCount: data.reviewCount || 0,
+          // برای ارسال به ReviewsScreen
+          trainerUserId: data.userId,
+
+          rating:  typeof ratingAPI.avgRating === "number" ? ratingAPI.avgRating : 3.5,
+          ratingCount: ratingAPI.reviewCount ?? 3.5,
         };
+
 
         setProfile(mapped);
       } catch (e) {
         if (!isMounted) return;
         setError(
-          e?.response?.data?.message || e.message || "خطا در گرفتن پروفایل مربی"
+          e?.response?.data?.message ||
+            e.message ||
+            "خطا در گرفتن پروفایل مربی"
         );
       } finally {
         if (isMounted) setLoading(false);
@@ -93,7 +104,7 @@ export default function ProfileTab() {
     };
   }, [setProfile]);
 
-  // ✅ حیطه تخصصی: هم آرایه، هم رشته‌ی کاما/ویرگول/خط‌جدید جداشده رو ساپورت کن
+  // حیطه تخصصی: آرایه یا رشته
   let specialties = [];
   if (Array.isArray(specialtiesRaw)) {
     specialties = specialtiesRaw.filter(Boolean);
@@ -133,7 +144,6 @@ export default function ProfileTab() {
   };
 
   const handleEditPress = () => {
-    // 👇 اسم روت رو با چیزی که تو ناوبری‌ات برای فرم پروفایل گذاشتی یکی کن
     navigation.navigate("ProfileEdit");
   };
 
@@ -174,15 +184,12 @@ export default function ProfileTab() {
           <RatingStars rating={rating} size={ms(16)} />
         </View>
 
-        {/* بقیه هدر همان قبلی */}
+        {/* بقیه هدر */}
         <View style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
           ) : (
-            <View
-              className="avatarPlaceholder"
-              style={styles.avatarPlaceholder}
-            >
+            <View style={styles.avatarPlaceholder}>
               <FontAwesome5
                 name="user-alt"
                 size={ms(42)}
@@ -199,15 +206,12 @@ export default function ProfileTab() {
             gap: ms(8),
           }}
         >
-          {/* اسم – اگر نباشه: "نام ثبت نشده" */}
           <Text style={styles.name}>{name || "نام ثبت نشده"}</Text>
 
-          {/* آیدی – اگر نباشه: "@ID ثبت نشده" */}
           <Text style={styles.username}>
             {username ? `@${username}` : "@ID ثبت نشده"}
           </Text>
 
-          {/* لوکیشن – اگر نباشه: "شهر ثبت نشده" */}
           <View style={styles.locationRow}>
             <Ionicons
               name="location-sharp"
@@ -221,7 +225,7 @@ export default function ProfileTab() {
       </View>
 
       <View style={styles.ratingAndButtonRow}>
-        {/* فقط دکمه‌ی رفتن به صفحه نظرات */}
+        {/* دکمه رفتن به صفحه نظرات */}
         <Pressable
           onPress={() =>
             navigation.navigate("ReviewsScreen", {
@@ -231,6 +235,7 @@ export default function ProfileTab() {
               username,
               city,
               avatarUri,
+              trainerId: trainerUserId,
             })
           }
           style={styles.reviewsButton}
@@ -262,11 +267,9 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* 🔥 مدرک مربیگری (بین حیطه تخصصی و توضیحات) */}
+      {/* مدرک مربیگری */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>مدرک مربیگری:</Text>
-
-        {/* 👇 ارتفاع این کارت رو با استایل certificateCard ثابت می‌کنیم */}
         <View style={[styles.card, styles.certificateCard]}>
           {certificateImageUrl ? (
             <Pressable
@@ -303,7 +306,9 @@ export default function ProfileTab() {
           {description ? (
             <Text style={styles.cardText}>{description}</Text>
           ) : (
-            <Text style={styles.placeholderText}>توضیحاتی ثبت نشده است.</Text>
+            <Text style={styles.placeholderText}>
+              توضیحاتی ثبت نشده است.
+            </Text>
           )}
         </View>
       </View>
@@ -330,6 +335,7 @@ export default function ProfileTab() {
           >
             <TamasIcon size={45} />
           </Pressable>
+
           <Pressable
             onPress={handleInstagramPress}
             disabled={!hasInstagram}
@@ -343,7 +349,7 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* مودال فول‌اسکرین برای مدرک */}
+      {/* مودال مدرک */}
       <Modal
         visible={certificateModalVisible}
         transparent
@@ -365,7 +371,7 @@ export default function ProfileTab() {
             <Image
               source={{ uri: certificateImageUrl }}
               style={styles.fullModalImage}
-              resizeMode="contain" // ✅ کیفیت اصلی، بدون کراپ
+              resizeMode="contain"
             />
           )}
         </View>
@@ -374,8 +380,7 @@ export default function ProfileTab() {
   );
 }
 
-// ---------- استایل‌ها ----------
-
+// ---------- استایل‌ها (بدون تغییر) ----------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -497,27 +502,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: ms(12),
   },
-
-  // 🔥 استایل‌های مدرک
+  contactBtnDisabled: {
+    opacity: 0.4,
+  },
 
   certificateCard: {
-    height: ms(70), // 🔥 ارتفاع ثابت (هم با متن خالی، هم با عکس)
+    height: ms(70),
     justifyContent: "center",
   },
-
   certificateThumbWrapper: {
     width: "100%",
-    height: "100%", // کل ارتفاع کارت رو می‌گیره
+    height: "100%",
     borderRadius: ms(12),
     overflow: "hidden",
-    alignSelf: "flex-end", // راست‌چین داخل کارت
+    alignSelf: "flex-end",
   },
-
   certificateThumb: {
     width: "100%",
     height: "100%",
   },
-
   certificateOverlay: {
     position: "absolute",
     bottom: 0,
@@ -529,14 +532,11 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
   },
-
   certificateOverlayText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(11),
     color: COLORS.white,
   },
-
-  // مودال فول‌اسکرین
   fullModalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -566,9 +566,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.bg,
-  },
-  contactBtnDisabled: {
-    opacity: 0.4,
   },
   ratingAndButtonRow: {
     flexDirection: "row-reverse",

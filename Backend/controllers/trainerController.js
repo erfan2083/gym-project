@@ -213,7 +213,7 @@ export const getMyTrainerProfile = async (req, res) => {
     const row = result.rows[0];
 
     return res.json({
-      userId: row.user_id,
+      userId: userId,
       fullName: row.full_name,
       avatarUrl: row.avatar_url,
       username: row.username,
@@ -355,14 +355,15 @@ export const updateTrainerProfile = async (req, res) => {
 // GET /trainers/:trainerId/rating
 export const getTrainerRating = async (req, res) => {
   const { trainerId } = req.params;
+  console.log(req.params);
 
   try {
-    const { rows } = await pool.query(
+    const result  = await pool.query(
       'SELECT * FROM "gym-project".get_trainer_rating_summary($1)',
       [trainerId]
     );
 
-    const summary = rows[0] || { avg_rating: 0, review_count: 0 };
+    const summary = result.rows[0] || { avg_rating: 3.5, review_count: 3.5 };
 
     res.json({
       avgRating: Number(summary.avg_rating),

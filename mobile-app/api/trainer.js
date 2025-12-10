@@ -85,7 +85,7 @@ export const uploadCertificate = async (file) => {
 };
 
 
-export const getMyTrainerProfile = async (trainerUserId) => {
+export const getMyTrainerProfile = async () => {
   const res = await api.get("/api/trainer/getTrainerPublicProfile");
   return res.data; // { userId, fullName, avatarUrl, ... }
 };
@@ -98,12 +98,12 @@ export const updateTrainerProfile = (payload) =>
 
 
 export const getTrainerRatingSummary = async (trainerId) => {
-  const res = await api.get(`/api/user/trainer/${trainerId}/rating`);
+  const res = await api.get(`/api/trainer/${trainerId}/rating`);
   return res.data;
 };
 
 
 export const getTrainerReviews = async (trainerId) => {
-  const res = await api.get(`/api/user/trainer/${trainerId}/reviews`);
+  const res = await api.get(`/api/trainer/${trainerId}/reviews`);
   return res.data;
 };
