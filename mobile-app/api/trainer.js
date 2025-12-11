@@ -107,3 +107,102 @@ export const getTrainerReviews = async (trainerId) => {
   const res = await api.get(`/api/trainer/${trainerId}/reviews`);
   return res.data;
 };
+
+
+/* ------------------------------------------------------------------
+ * پلن‌های مربی (Plan APIs)
+ * -----------------------------------------------------------------*/
+
+/**
+ * ساخت پلن جدید توسط مربی لاگین‌شده
+ * POST /api/trainer/creatPlan
+ *
+ * payload:
+ * {
+ *   title: string,
+ *   description?: string,
+ *   price?: number | string,
+ *   durationInDays: number | string
+ * }
+ */
+export const createTrainerPlan = async (payload) => {
+  const { title, description, price, durationInDays } = payload;
+
+  const body = {
+    title,
+    description: description || null,
+    price: price ?? 0,
+    durationInDays,
+  };
+
+  const res = await api.post("/api/trainer/creatPlan", body);
+  return res.data;
+};
+
+
+
+/**
+ * ویرایش پلن مربی
+ * PUT /api/trainer/:planId/update
+ *
+ * payload:
+ * {
+ *   title: string,
+ *   description?: string,
+ *   price?: number | string,
+ *   durationInDays: number | string
+ * }
+ */
+export const updateTrainerPlan = async (planId, payload) => {
+  const { title, description, price, durationInDays } = payload;
+
+  const body = {
+    title,
+    description: description || null,
+    price: price ?? 0,
+    durationInDays,
+  };
+
+  const res = await api.put(`/api/trainer/${planId}/update`, body);
+  return res.data;
+};
+
+/**
+ * حذف پلن مربی
+ * DELETE /api/trainer/:planId/delete
+ */
+export const deleteTrainerPlan = async (planId) => {
+  const res = await api.delete(`/api/trainer/${planId}/delete`);
+  return res.data;
+};
+
+/**
+ * لیست پلن‌های مربی لاگین‌شده
+ * GET /api/trainer/plansList
+ *
+ * خروجی نمونه:
+ * [
+ *   {
+ *     id,
+ *     title,
+ *     description,
+ *     price,
+ *     duration_in_days,
+ *     created_at
+ *   },
+ *   ...
+ * ]
+ */
+export const getMyTrainerPlans = async () => {
+  const res = await api.get("/api/trainer/plansList");
+  return res.data;
+};
+
+/**
+ * لیست پلن‌های یک مربی (پابلیک برای نمایش به شاگردها)
+ * GET /api/trainer/:trainerId/plan
+ */
+export const getTrainerPlans = async (trainerId) => {
+  const res = await api.get(`/api/trainer/${trainerId}/plan`);
+  return res.data;
+};
