@@ -1,6 +1,13 @@
 // src/screens/profile/ReviewsScreen.js
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Pressable,
+} from "react-native";
 import { ms } from "react-native-size-matters";
 import { useRoute } from "@react-navigation/native";
 import { COLORS } from "../../theme/colors";
@@ -18,7 +25,7 @@ export default function ReviewsScreen() {
 
   // پارامترهایی که از ProfileTab پاس داده می‌شن
   const {
-    rating: ratingFromRoute = 5,        // امتیاز کلی که از پروفایل می‌آد
+    rating: ratingFromRoute = 5, // امتیاز کلی که از پروفایل می‌آد
     ratingCount: ratingCountFromRoute = 5, // تعداد نظرات کلی
     name = "نام ثبت نشده",
     username,
@@ -29,6 +36,16 @@ export default function ReviewsScreen() {
 
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // برای مدیریت "بیشتر / کمتر" هر کامنت
+  const [expandedReviews, setExpandedReviews] = useState({}); // { [id یا index]: true/false }
+
+  const toggleExpand = (key) => {
+    setExpandedReviews((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   // گرفتن نظرات واقعی از API
   useEffect(() => {
@@ -98,8 +115,6 @@ export default function ReviewsScreen() {
   }
 
   // امتیاز نهایی که نمایش داده می‌شه:
-  // اگر از روی لیست نظرات محاسبه شده بود => اون
-  // وگرنه => امتیازی که از route (پروفایل) اومده
   const averageRating = computedAverage ?? ratingFromRoute;
   const ratingText = averageRating ? averageRating.toFixed(1) : "0.0";
 
@@ -168,8 +183,10 @@ export default function ReviewsScreen() {
       {/* ---------- کارت‌های نظرات ---------- */}
       {Array.isArray(reviews) && reviews.length > 0 ? (
         reviews.map((r, index) => {
-          const customerName = r.trainee_name || r.customerName || r.name || "نام مشتری";
-          const date = r.created_at || r.date || r.createdAt || "";
+          const customerName =
+            r.trainee_name || r.customerName || r.name || "نام مشتری ";
+          const rawDate = r.created_at || r.date || r.createdAt || "";
+          const date = rawDate ? String(rawDate).slice(0, 10) : "";
           const score =
             typeof r.score === "number"
               ? r.score
@@ -178,24 +195,27 @@ export default function ReviewsScreen() {
               : 0;
           const comment = r.comment || r.text || "";
 
+          const key = r.id ?? index;
+          const isExpanded = !!expandedReviews[key];
+          const isLong = comment && comment.length > 90; // هر متنی طولانی‌تر از این، دکمه "بیشتر" می‌گیرد
+
           return (
-            <View key={r.id ?? index} style={styles.reviewCard}>
+            <View key={key} style={styles.reviewCard}>
               <View style={styles.reviewTopRow}>
                 <View style={styles.reviewNameDate}>
-                  <Text style={styles.reviewName}>{customerName}</Text>
+                  <Text style={styles.reviewName}>{customerName} </Text>
                   {date ? (
-                    <Text style={styles.reviewDate}> - {date}</Text>
+                    <Text style={styles.reviewDate}> {date} </Text>
                   ) : null}
                 </View>
 
                 <View style={styles.reviewScoreWrapper}>
                   <AntDesign
                     name="star"
-                    size={ms(16)}
+                    size={ms(20)}
                     color={COLORS.primary}
                     style={{ marginLeft: ms(4) }}
                   />
-                  <Text style={styles.reviewScoreLabel}>امتیاز</Text>
                   {typeof score === "number" && score > 0 ? (
                     <Text style={styles.reviewScoreValue}>
                       {score.toFixed(1)}
@@ -204,15 +224,29 @@ export default function ReviewsScreen() {
                 </View>
               </View>
 
+              {/* متن نظر */}
               <Text
                 style={[
                   styles.reviewComment,
                   !comment && styles.reviewCommentPlaceholder,
                 ]}
-                numberOfLines={2}
+                numberOfLines={isExpanded ? undefined : 2} // 👈 در حالت عادی ۲ خط، اگر بیشتر شد باز می‌کنیم
               >
                 {comment || "متن نظر مشتری بعد از ثبت اینجا نمایش داده می‌شود."}
               </Text>
+
+              {/* دکمه "بیشتر / کمتر" فقط اگر متن طولانی باشد */}
+              {isLong && (
+                <Pressable
+                  onPress={() => toggleExpand(key)}
+                  hitSlop={8}
+                  style={styles.moreLessWrapper}
+                >
+                  <Text style={styles.moreLessText}>
+                    {isExpanded ? "کمتر" : "بیشتر"}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           );
         })
@@ -257,6 +291,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: ms(8),
+    transform: [{ translateY: ms(-8) }],
   },
   avatarPlaceholder: {
     width: "100%",
@@ -290,13 +325,12 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     color: COLORS.white,
     marginRight: ms(10),
-    marginBottom: ms(10),
+    marginBottom: ms(5),
     textAlign: "right",
   },
   locationRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    marginTop: ms(10),
   },
   locationText: {
     fontFamily: "Vazirmatn_400Regular",
@@ -309,6 +343,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: ms(20),
+    gap: ms(70),
   },
   ratingLeft: {
     alignItems: "flex-start",
@@ -332,7 +367,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     transform: [{ translateX: ms(90) }],
-    fontFamily: "Vazirmatn_700Bold",
+    fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(13),
     color: COLORS.primary,
     marginBottom: ms(4),
@@ -349,16 +384,16 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     paddingHorizontal: ms(16),
     paddingVertical: ms(12),
-    gap: ms(25),
+    gap: ms(8),
     marginBottom: ms(20),
-    Height: ms(91),
+    minHeight: ms(91), // 👈 حداقل ارتفاع، ولی در صورت "بیشتر" بزرگ می‌شود
     justifyContent: "space-between",
   },
   reviewTopRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: ms(8),
+    marginBottom: ms(4),
   },
   reviewNameDate: {
     flexDirection: "row-reverse",
@@ -373,22 +408,18 @@ const styles = StyleSheet.create({
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(11),
     color: COLORS.text2,
+    marginRight: ms(10),
   },
   reviewScoreWrapper: {
     flexDirection: "row",
     alignItems: "center",
   },
-  reviewScoreLabel: {
-    fontFamily: "Vazirmatn_700Bold",
-    fontSize: ms(11),
-    color: COLORS.text,
-    marginRight: ms(2),
-  },
   reviewScoreValue: {
     fontFamily: "Vazirmatn_700Bold",
-    fontSize: ms(11),
+    fontSize: ms(18),
     color: COLORS.primary,
-    marginLeft: ms(4),
+    marginLeft: ms(7),
+    transform: [{ translateY: ms(2) }],
   },
   reviewComment: {
     marginTop: ms(4),
@@ -402,6 +433,18 @@ const styles = StyleSheet.create({
     color: COLORS.text2,
     fontStyle: "italic",
   },
+
+  // دکمه "بیشتر / کمتر"
+  moreLessWrapper: {
+    alignSelf: "flex-start", // سمت چپ کارت (چون RTL است)
+    marginTop: ms(4),
+  },
+  moreLessText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(11),
+    color: COLORS.primary,
+  },
+
   reviewLabelBottom: {
     alignSelf: "flex-end",
     marginTop: ms(4),
