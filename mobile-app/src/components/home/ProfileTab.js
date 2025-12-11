@@ -1,5 +1,5 @@
 // src/components/home/ProfileTab.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   Linking,
   Modal,
   ActivityIndicator,
+  ScrollView,
+  TextInput,
+  Dimensions,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
@@ -22,7 +25,37 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import InstaIcon from "../ui/Instaicon";
-import { getMyTrainerProfile, getTrainerRatingSummary } from "../../../api/trainer.js";
+import {
+  getMyTrainerProfile,
+  getTrainerRatingSummary,
+} from "../../../api/trainer.js";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+const PAGE_WIDTH = SCREEN_WIDTH; // عرض هر صفحه اسکرول
+const CARD_WIDTH = SCREEN_WIDTH - ms(32); // عرض خود کارت با حاشیه دو طرف
+
+// ثابت‌ها برای کارت اشتراک و هلال
+const CARD_HEIGHT = ms(130);
+const CIRCLE_SIZE = CARD_HEIGHT * 2; // دایره بزرگ برای ساخت هلال
+const INFO_MARGIN_LEFT = CARD_HEIGHT * 0.55; // فاصله شروع متن از سمت چپ بعد از هلال
+
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+// ✅ تبدیل اعداد انگلیسی به فارسی
+const toPersianDigits = (str) => {
+  const map = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+  return String(str).replace(/\d/g, (d) => map[Number(d)]);
+};
+
+// ✅ فرمت مبلغ: فقط رقم، سه‌رقم سه‌رقم با ویرگول، و اعداد فارسی
+const formatPrice = (value) => {
+  if (!value) return "۰";
+  const numeric = String(value).replace(/[^\d]/g, "");
+  if (!numeric) return "۰";
+  const withCommas = numeric.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return toPersianDigits(withCommas);
+};
 
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
@@ -39,9 +72,7 @@ export default function ProfileTab() {
   const telegram = profile?.telegram || "";
   const certificateImageUrl = profile?.certificateImageUrl || null;
 
-  // ✅ rating و ratingCount فقط از API پروفایل مربی
-  const rating =
-    typeof profile?.rating === "number" ? profile.rating : 0;
+  const rating = typeof profile?.rating === "number" ? profile.rating : 0;
   const ratingCount = profile?.ratingCount ?? 0;
   const trainerUserId = profile?.trainerUserId;
 
@@ -50,6 +81,22 @@ export default function ProfileTab() {
 
   const navigation = useNavigation();
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
+
+  // ---------- اشتراک‌ها / اسلایدر ----------
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [activeSubIndex, setActiveSubIndex] = useState(0);
+  const subScrollRef = useRef(null);
+
+  // فرم ساخت اشتراک
+  const [subscriptionModalVisible, setSubscriptionModalVisible] =
+    useState(false);
+  const [subName, setSubName] = useState("");
+  const [subDurationCount, setSubDurationCount] = useState(null);
+  const [subPrice, setSubPrice] = useState("");
+  const [subDescription, setSubDescription] = useState("");
+
+  // مودال انتخاب تعداد ماه
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,7 +111,6 @@ export default function ProfileTab() {
 
         if (!isMounted) return;
 
-        // 👇 مپ کردن دقیق فیلدهای API به استور
         const mapped = {
           username: data.username,
           name: data.fullName || data.username || "",
@@ -76,21 +122,17 @@ export default function ProfileTab() {
           instagram: data.instagramUrl || "",
           telegram: data.telegramUrl || "",
           certificateImageUrl: data.certificateImageUrl || null,
-          // برای ارسال به ReviewsScreen
           trainerUserId: data.userId,
-
-          rating:  typeof ratingAPI.avgRating === "number" ? ratingAPI.avgRating : 3.5,
-          ratingCount: ratingAPI.reviewCount ?? 3.5,
+          rating:
+            typeof ratingAPI.avgRating === "number" ? ratingAPI.avgRating : 3.5,
+          ratingCount: ratingAPI.reviewCount ?? 0,
         };
-
 
         setProfile(mapped);
       } catch (e) {
         if (!isMounted) return;
         setError(
-          e?.response?.data?.message ||
-            e.message ||
-            "خطا در گرفتن پروفایل مربی"
+          e?.response?.data?.message || e.message || "خطا در گرفتن پروفایل مربی"
         );
       } finally {
         if (isMounted) setLoading(false);
@@ -104,7 +146,7 @@ export default function ProfileTab() {
     };
   }, [setProfile]);
 
-  // حیطه تخصصی: آرایه یا رشته
+  // حیطه تخصصی
   let specialties = [];
   if (Array.isArray(specialtiesRaw)) {
     specialties = specialtiesRaw.filter(Boolean);
@@ -147,6 +189,54 @@ export default function ProfileTab() {
     navigation.navigate("ProfileEdit");
   };
 
+  // وقتی لیست اشتراک تغییر کند → روی آخرین اشتراک اسکرول می‌کنیم
+  useEffect(() => {
+    if (!subScrollRef.current) return;
+
+    if (subscriptions.length === 0) {
+      subScrollRef.current.scrollTo({ x: 0, animated: false });
+      setActiveSubIndex(0);
+    } else {
+      const targetIndex = subscriptions.length - 1;
+      subScrollRef.current.scrollTo({
+        x: targetIndex * SCREEN_WIDTH,
+        animated: true,
+      });
+      setActiveSubIndex(targetIndex);
+    }
+  }, [subscriptions.length]);
+
+  const handleSubScroll = (event) => {
+    const x = event.nativeEvent.contentOffset.x;
+    const index = Math.round(x / PAGE_WIDTH); // ✅ تقسیم بر عرض صفحه
+    if (index !== activeSubIndex) {
+      setActiveSubIndex(index);
+    }
+  };
+
+  const handleAddSubscription = () => {
+    const trimmedName = subName.trim();
+    const trimmedPrice = subPrice.trim();
+    const trimmedDesc = subDescription.trim();
+
+    const newSub = {
+      id: Date.now().toString(),
+      name: trimmedName || "اشتراک جدید",
+      durationLabel: subDurationCount ? `${subDurationCount} ماه` : "مدت زمان",
+      priceText: trimmedPrice || "0",
+      descriptionShort: trimmedDesc || "توضیحات بیشتر",
+    };
+
+    setSubscriptions((prev) => [...prev, newSub]);
+
+    setSubName("");
+    setSubDurationCount(null);
+    setSubPrice("");
+    setSubDescription("");
+
+    setSubscriptionModalVisible(false);
+  };
+
   if (loading && !profile?.username) {
     return (
       <View style={styles.center}>
@@ -163,11 +253,16 @@ export default function ProfileTab() {
     );
   }
 
+  const pagesCount = subscriptions.length + 1; // اشتراک‌ها + صفحه ساخت
+
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
       {/* هدر بالا */}
       <View style={styles.header}>
-        {/* آیکون ادیت بالا سمت چپ */}
         <Pressable
           style={styles.editButton}
           onPress={handleEditPress}
@@ -176,7 +271,6 @@ export default function ProfileTab() {
           <Feather name="edit-2" size={ms(18)} color={COLORS.white} />
         </Pressable>
 
-        {/* ⭐ امتیاز زیر دکمه ادیت */}
         <View style={styles.starsUnderEdit}>
           <Text style={styles.ratingNumber}>
             {rating ? rating.toFixed(1) : "0.0"}
@@ -184,7 +278,6 @@ export default function ProfileTab() {
           <RatingStars rating={rating} size={ms(16)} />
         </View>
 
-        {/* بقیه هدر */}
         <View style={styles.avatarWrapper}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
@@ -225,7 +318,6 @@ export default function ProfileTab() {
       </View>
 
       <View style={styles.ratingAndButtonRow}>
-        {/* دکمه رفتن به صفحه نظرات */}
         <Pressable
           onPress={() =>
             navigation.navigate("ReviewsScreen", {
@@ -306,10 +398,81 @@ export default function ProfileTab() {
           {description ? (
             <Text style={styles.cardText}>{description}</Text>
           ) : (
-            <Text style={styles.placeholderText}>
-              توضیحاتی ثبت نشده است.
-            </Text>
+            <Text style={styles.placeholderText}>توضیحاتی ثبت نشده است.</Text>
           )}
+        </View>
+      </View>
+
+      {/* اشتراک ها */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>اشتراک ها:</Text>
+
+        <View style={styles.subSectionCardWrapper}>
+          <ScrollView
+            ref={subScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleSubScroll}
+            scrollEventThrottle={16}
+          >
+            {/* اشتراک‌ها */}
+            {subscriptions.map((sub) => (
+              <View key={sub.id} style={styles.subscriptionPage}>
+                <View style={styles.subscriptionCard}>
+                  {/* هلال خاکستری گوشه چپ بالا */}
+                  <View style={styles.subscriptionCircle} />
+
+                  {/* بلاک قیمت داخل هلال */}
+                  <View style={styles.subscriptionPriceContainer}>
+                    <Text style={styles.subscriptionPriceText}>
+                      {formatPrice(sub.priceText) /* ✅ فرمت فارسی با ویرگول */}
+                    </Text>
+                    <Text style={styles.subscriptionPriceUnit}>تومان</Text>
+                  </View>
+
+                  {/* اطلاعات برنامه */}
+                  <View style={styles.subscriptionInfoBlock}>
+                    <Text style={styles.subscriptionName}>{sub.name}</Text>
+                    <Text style={styles.subscriptionDuration}>
+                      {sub.durationLabel}
+                    </Text>
+                    <View style={styles.subscriptionDivider} />
+                    <Pressable hitSlop={6}>
+                      <Text style={styles.subscriptionMore}>
+                        {sub.descriptionShort}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {/* صفحه‌ی ساخت اشتراک – سمت راست‌ترین */}
+            <View style={styles.subscriptionPage}>
+              <Pressable
+                style={styles.createSubscriptionCard}
+                onPress={() => setSubscriptionModalVisible(true)}
+              >
+                <View style={styles.createPlusCircle}>
+                  <AntDesign name="plus" size={ms(22)} color={COLORS.primary} />
+                </View>
+              </Pressable>
+            </View>
+          </ScrollView>
+
+          {/* دایره‌های اسلایدر */}
+          <View style={styles.subDotsRow}>
+            {Array.from({ length: pagesCount }).map((_, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.subDot,
+                  idx === activeSubIndex && styles.subDotActive,
+                ]}
+              />
+            ))}
+          </View>
         </View>
       </View>
 
@@ -349,7 +512,148 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* مودال مدرک */}
+      {/* مودال ساخت اشتراک */}
+      <Modal
+        visible={subscriptionModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSubscriptionModalVisible(false)}
+      >
+        <Pressable
+          style={styles.fullModalBackdrop}
+          onPress={() => setSubscriptionModalVisible(false)}
+        />
+        <View style={styles.subModalContent}>
+          <View style={styles.subModalCard}>
+            <View style={styles.subModalHeader}>
+              <Text style={styles.subModalHeaderText}>ساخت اشتراک:</Text>
+            </View>
+
+            <View style={styles.subModalBody}>
+              {/* نام اشتراک - لیبل داخل فیلد */}
+              <View style={styles.subField}>
+                <TextInput
+                  style={styles.subInput}
+                  placeholder="نام اشتراک:"
+                  placeholderTextColor={COLORS.text2}
+                  value={subName}
+                  onChangeText={setSubName}
+                  textAlign="right"
+                />
+              </View>
+
+              {/* مدت زمان - فیلد پِل */}
+              <View style={styles.subField}>
+                <Pressable
+                  style={[styles.subInput, styles.subDurationField]}
+                  onPress={() => setMonthPickerVisible(true)}
+                >
+                  <Text style={styles.subDurationLabel}>مدت زمان:</Text>
+                  <View style={styles.subDurationRightSide}>
+                    <View style={styles.subDurationUnitBox}>
+                      <Text style={styles.subDurationUnitText}>ماه</Text>
+                      <AntDesign
+                        name="down"
+                        size={ms(10)}
+                        color={COLORS.text}
+                        style={{ marginRight: ms(4) }}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.subDurationValueText,
+                        !subDurationCount && { color: COLORS.text2 },
+                      ]}
+                    >
+                      {subDurationCount ?? "..."}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* قیمت */}
+              <View style={styles.subField}>
+                <TextInput
+                  style={styles.subInput}
+                  placeholder="قیمت:"
+                  placeholderTextColor={COLORS.text2}
+                  keyboardType="numeric"
+                  value={subPrice}
+                  onChangeText={setSubPrice}
+                  textAlign="right"
+                />
+              </View>
+
+              {/* توضیحات بیشتر */}
+              <View style={styles.subField}>
+                <TextInput
+                  style={[styles.subInput, styles.subInputMultiline]}
+                  placeholder="توضیحات بیشتر:"
+                  placeholderTextColor={COLORS.text2}
+                  multiline
+                  numberOfLines={3}
+                  value={subDescription}
+                  onChangeText={setSubDescription}
+                  textAlign="right"
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <Pressable
+                style={styles.subSubmitButton}
+                onPress={handleAddSubscription}
+              >
+                <Text style={styles.subSubmitButtonText}>افزودن</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* مودال انتخاب تعداد ماه */}
+      <Modal
+        visible={monthPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMonthPickerVisible(false)}
+      >
+        <Pressable
+          style={styles.fullModalBackdrop}
+          onPress={() => setMonthPickerVisible(false)}
+        />
+        <View style={styles.monthPickerContent}>
+          <View style={styles.monthPickerCard}>
+            <Text style={styles.monthPickerTitle}>انتخاب مدت (ماه)</Text>
+            <View style={styles.monthPickerGrid}>
+              {MONTH_OPTIONS.map((m) => (
+                <Pressable
+                  key={m}
+                  style={[
+                    styles.monthPickerItem,
+                    subDurationCount === m && styles.monthPickerItemActive,
+                  ]}
+                  onPress={() => {
+                    setSubDurationCount(m);
+                    setMonthPickerVisible(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.monthPickerItemText,
+                      subDurationCount === m &&
+                        styles.monthPickerItemTextActive,
+                    ]}
+                  >
+                    {m}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* مودال مدرک مربیگری */}
       <Modal
         visible={certificateModalVisible}
         transparent
@@ -376,25 +680,28 @@ export default function ProfileTab() {
           )}
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
-// ---------- استایل‌ها (بدون تغییر) ----------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: ms(32),
+  },
+
   header: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
     marginBottom: ms(30),
-    marginTop: ms(40),
+    marginTop: ms(30),
   },
   editButton: {
     position: "absolute",
-    left: ms(-10),
-    top: 0,
+    left: ms(-6),
+    top: ms(-20),
     padding: ms(8),
     zIndex: 10,
   },
@@ -425,12 +732,14 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     color: COLORS.white,
     marginBottom: ms(4),
+    marginLeft: ms(20),
   },
   username: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.white,
     marginBottom: ms(4),
+    marginLeft: ms(20),
   },
   locationRow: {
     flexDirection: "row-reverse",
@@ -441,9 +750,9 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     color: COLORS.white,
   },
+
   section: {
-    marginBottom: ms(8),
-    flex: 1,
+    marginBottom: ms(12),
   },
   sectionTitle: {
     fontFamily: "Vazirmatn_700Bold",
@@ -488,6 +797,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     marginLeft: ms(8),
   },
+
   contactsRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-around",
@@ -537,6 +847,7 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: COLORS.white,
   },
+
   fullModalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -561,12 +872,14 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: ms(8),
   },
+
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.bg,
   },
+
   ratingAndButtonRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -595,9 +908,272 @@ const styles = StyleSheet.create({
   },
   starsUnderEdit: {
     position: "absolute",
-    left: ms(-15),
-    top: ms(43),
+    left: ms(-1),
+    top: ms(33),
     flexDirection: "row-reverse",
     alignItems: "center",
+  },
+
+  // ---------- اشتراک‌ها / اسلایدر ----------
+  subSectionCardWrapper: {
+    backgroundColor: "transparent",
+    alignItems: "center",
+  },
+
+  subscriptionPage: {
+    width: PAGE_WIDTH, // ✅ کل عرض گوشی
+    alignItems: "center",
+  },
+
+  createSubscriptionCard: {
+    width: CARD_WIDTH, // ✅ خود کارت کوچک‌تر از صفحه
+    height: CARD_HEIGHT,
+    borderRadius: ms(24),
+    backgroundColor: COLORS.inputBg2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  subscriptionCard: {
+    width: CARD_WIDTH, // ✅ خود کارت کوچک‌تر از صفحه
+    height: CARD_HEIGHT,
+    borderRadius: ms(24),
+    backgroundColor: COLORS.lighgreen,
+    overflow: "hidden",
+    justifyContent: "center",
+  },
+  subscriptionCircle: {
+    position: "absolute",
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
+    backgroundColor: COLORS.inputBg2,
+    left: -CIRCLE_SIZE / 2,
+    top: -CIRCLE_SIZE / 2,
+  },
+  subscriptionPriceContainer: {
+    position: "absolute",
+    left: ms(20),
+    bottom: ms(20),
+    alignItems: "flex-start",
+  },
+  subscriptionPriceText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(16),
+    color: COLORS.text3,
+    transform: [{ translateY: ms(-15) }],
+  },
+  subscriptionPriceUnit: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    transform: [{ translateY: ms(-12) }, { translateX: ms(40) }],
+    marginTop: ms(4),
+  },
+  subscriptionInfoBlock: {
+    marginLeft: INFO_MARGIN_LEFT,
+    paddingRight: ms(18),
+    paddingVertical: ms(14),
+    justifyContent: "space-between",
+  },
+  subscriptionName: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.text3,
+    textAlign: "right",
+  },
+  subscriptionDuration: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    textAlign: "right",
+    marginTop: ms(4),
+  },
+  subscriptionDivider: {
+    width: "70%",
+    transform: [{ translateX: ms(60) }, { translateY: ms(-10) }],
+    height: ms(1),
+    backgroundColor: COLORS.text3,
+    marginTop: ms(12),
+    marginBottom: ms(8),
+  },
+  subscriptionMore: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    textAlign: "right",
+  },
+
+  subDotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: ms(10),
+  },
+  subDot: {
+    width: ms(7),
+    height: ms(7),
+    borderRadius: ms(3.5),
+    backgroundColor: COLORS.primary,
+    opacity: 0.3,
+    marginHorizontal: ms(3),
+  },
+  subDotActive: {
+    opacity: 1,
+  },
+
+  // ---------- مودال ساخت اشتراک ----------
+  subModalContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  subModalCard: {
+    width: "88%",
+    height: "70%",
+    borderRadius: ms(10),
+    backgroundColor: COLORS.inputBg2,
+    overflow: "hidden",
+  },
+  subModalHeader: {
+    height: ms(100),
+    backgroundColor: COLORS.primary,
+    borderTopLeftRadius: ms(10),
+    borderBottomRightRadius: ms(130),
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: ms(20),
+  },
+  subModalHeaderText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(20),
+    color: COLORS.white2,
+  },
+  subModalBody: {
+    paddingHorizontal: ms(20),
+    paddingVertical: ms(16),
+  },
+  subField: {
+    marginBottom: ms(10),
+  },
+  subInput: {
+    backgroundColor: COLORS.inputBg,
+    borderRadius: ms(10),
+    paddingHorizontal: ms(14),
+    paddingVertical: ms(12),
+    marginBottom: ms(13),
+    textAlign: "right",
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+  },
+  subInputMultiline: {
+    minHeight: ms(70),
+    textAlignVertical: "top",
+  },
+
+  subDurationField: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  subDurationLabel: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+    marginLeft: ms(10),
+  },
+  subDurationRightSide: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+  },
+  subDurationUnitBox: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: COLORS.inputBg2,
+    borderRadius: ms(999),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(4),
+    marginLeft: ms(8),
+  },
+  subDurationUnitText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(11),
+    color: COLORS.text,
+    marginLeft: ms(4),
+  },
+  subDurationValueText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+  },
+
+  subSubmitButton: {
+    marginTop: ms(18),
+    marginBottom: ms(4),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(24),
+    paddingVertical: ms(18),
+    transform: [{ translateX: ms(14) }],
+    width: "90%",
+    alignItems: "center",
+  },
+  subSubmitButtonText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.white2,
+  },
+
+  // ---------- مودال انتخاب ماه ----------
+  monthPickerContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  monthPickerCard: {
+    width: "70%",
+    borderRadius: ms(18),
+    backgroundColor: COLORS.inputBg2,
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(14),
+  },
+  monthPickerTitle: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(13),
+    color: COLORS.text,
+    textAlign: "center",
+    marginBottom: ms(10),
+  },
+  monthPickerGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  monthPickerItem: {
+    width: "22%",
+    marginBottom: ms(8),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.inputBg,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: ms(6),
+  },
+  monthPickerItemActive: {
+    backgroundColor: COLORS.primary,
+  },
+  monthPickerItemText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+  },
+  monthPickerItemTextActive: {
+    color: COLORS.white,
   },
 });
