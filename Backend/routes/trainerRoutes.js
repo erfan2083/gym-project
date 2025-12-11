@@ -8,7 +8,12 @@ import {
   getMyTrainerProfile,
   updateTrainerProfile,
   getTrainerRating,
-  getTrainerReviews
+  getTrainerReviews,
+  createPlan,
+  updatePlan,
+  deletePlan,
+  getMyPlans,
+  getTrainerPlansPublic,
   
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -43,6 +48,16 @@ trainerRouter.get(
   "/:trainerId/reviews",
   getTrainerReviews
 );
+
+
+trainerRouter.post("/creatPlan", authMiddleware, createPlan);          // ساخت پلن
+trainerRouter.put("/:planId/update", authMiddleware, updatePlan);    // ویرایش پلن
+trainerRouter.delete("/:planId/delete", authMiddleware, deletePlan); // حذف پلن
+trainerRouter.get("/plansList", authMiddleware, getMyPlans);         // لیست پلن‌های خود مربی
+
+// ✅ برای شاگردها و عموم (نیاز به لاگین هم می‌تونه نداشته باشه، طبق نیازت)
+// اینجا لاگین رو اجبار نکردم؛ اگر می‌خوای فقط کاربر لاگین‌شده ببینه، authMiddleware رو اضافه کن
+trainerRouter.get("/:trainerId/plan", getTrainerPlansPublic);
 
 
 export default trainerRouter;

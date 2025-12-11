@@ -390,3 +390,222 @@ export const getTrainerReviews = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+/**
+ * فقط مربی‌ها اجازه ساخت پلن دارن
+ */
+const ensureCoach = (req, res) => {
+  if (!req.user || req.user.role !== "coach") {
+    res.status(403).json({ message: "Only coaches can manage plans" });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * POST /api/plans
+ * ساخت پلن جدید توسط مربی لاگین‌شده
+ * body: { title, description, price, durationInDays }
+ */
+export const createPlan = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const trainerId = req.user.id;
+  const { title, description, price, durationInDays } = req.body;
+
+  if (!title || !durationInDays) {
+    return res
+      .status(400)
+      .json({ message: "title و durationInDays الزامی است" });
+  }
+
+  const duration = parseInt(durationInDays, 10);
+  const priceNum = price !== undefined && price !== null ? Number(price) : 0;
+
+  if (Number.isNaN(duration) || duration <= 0) {
+    return res
+      .status(400)
+      .json({ message: "durationInDays باید عدد مثبت باشد" });
+  }
+
+  if (Number.isNaN(priceNum) || priceNum < 0) {
+    return res
+      .status(400)
+      .json({ message: "price باید عدد بزرگتر یا مساوی صفر باشد" });
+  }
+
+  try {
+    // CALL "gym-project".create_plan(IN p_trainer_id, IN p_title, IN p_description, IN p_price, IN p_duration_days, OUT o_plan_id)
+    await pool.query(
+      'CALL "gym-project".create_plan($1, $2, $3, $4, $5)',
+      [trainerId, title, description || null, priceNum, duration]
+    );
+
+    // اگر خواستی می‌تونی بعدش لیست پلن‌ها یا همون پلن رو دوباره SELECT کنی
+    return res
+      .status(201)
+      .json({ message: "Plan created successfully" });
+  } catch (err) {
+    console.error("Error in createPlan:", err);
+    return res.status(500).json({
+      message: "Server error while creating plan",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * PUT /api/plans/:planId
+ * ویرایش پلن (فقط صاحب پلن = مربی لاگین‌شده)
+ */
+export const updatePlan = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const trainerId = req.user.id;
+  const { planId } = req.params;
+  const { title, description, price, durationInDays } = req.body;
+
+  if (!planId) {
+    return res.status(400).json({ message: "planId الزامی است" });
+  }
+
+  if (!title || !durationInDays) {
+    return res
+      .status(400)
+      .json({ message: "title و durationInDays الزامی است" });
+  }
+
+  const duration = parseInt(durationInDays, 10);
+  const priceNum = price !== undefined && price !== null ? Number(price) : 0;
+
+  if (Number.isNaN(duration) || duration <= 0) {
+    return res
+      .status(400)
+      .json({ message: "durationInDays باید عدد مثبت باشد" });
+  }
+
+  if (Number.isNaN(priceNum) || priceNum < 0) {
+    return res
+      .status(400)
+      .json({ message: "price باید عدد بزرگتر یا مساوی صفر باشد" });
+  }
+
+  try {
+    await pool.query(
+      'CALL "gym-project".update_plan($1, $2, $3, $4, $5, $6)',
+      [trainerId, planId, title, description || null, priceNum, duration]
+    );
+
+    return res.json({ message: "Plan updated successfully" });
+  } catch (err) {
+    console.error("Error in updatePlan:", err);
+
+    // اگر پروسیجر ارور مالکیت یا نبودن پلن بده
+    if (err.message.includes("Plan not found")) {
+      return res.status(404).json({ message: "Plan not found" });
+    }
+    if (err.message.includes("only edit your own plans")) {
+      return res
+        .status(403)
+        .json({ message: "You can only edit your own plans" });
+    }
+
+    return res.status(500).json({
+      message: "Server error while updating plan",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * DELETE /api/plans/:planId
+ * حذف پلن (فقط صاحب پلن)
+ */
+export const deletePlan = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const trainerId = req.user.id;
+  const { planId } = req.params;
+
+  if (!planId) {
+    return res.status(400).json({ message: "planId الزامی است" });
+  }
+
+  try {
+    await pool.query(
+      'CALL "gym-project".delete_plan($1, $2)',
+      [trainerId, planId]
+    );
+
+    return res.json({ message: "Plan deleted successfully" });
+  } catch (err) {
+    console.error("Error in deletePlan:", err);
+
+    if (err.message.includes("Plan not found")) {
+      return res.status(404).json({ message: "Plan not found" });
+    }
+    if (err.message.includes("only delete your own plans")) {
+      return res
+        .status(403)
+        .json({ message: "You can only delete your own plans" });
+    }
+
+    return res.status(500).json({
+      message: "Server error while deleting plan",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /api/plans/me
+ * لیست پلن‌های مربی لاگین‌شده
+ */
+export const getMyPlans = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const trainerId = req.user.id;
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_plans($1)',
+      [trainerId]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error in getMyPlans:", err);
+    return res.status(500).json({
+      message: "Server error while fetching plans",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /api/plans/trainer/:trainerId
+ * لیست پلن‌های یک مربی برای نمایش به شاگردها (Public)
+ */
+export const getTrainerPlansPublic = async (req, res) => {
+  const { trainerId } = req.params;
+
+  if (!trainerId) {
+    return res.status(400).json({ message: "trainerId الزامی است" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_plans($1)',
+      [trainerId]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error in getTrainerPlansPublic:", err);
+    return res.status(500).json({
+      message: "Server error while fetching trainer plans",
+      error: err.message,
+    });
+  }
+};
