@@ -32,13 +32,13 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const PAGE_WIDTH = SCREEN_WIDTH; // عرض هر صفحه اسکرول
-const CARD_WIDTH = SCREEN_WIDTH - ms(32); // عرض خود کارت با حاشیه دو طرف
+const PAGE_WIDTH = SCREEN_WIDTH;
+const CARD_WIDTH = SCREEN_WIDTH - ms(32);
 
 // ثابت‌ها برای کارت اشتراک و هلال
 const CARD_HEIGHT = ms(130);
-const CIRCLE_SIZE = CARD_HEIGHT * 2; // دایره بزرگ برای ساخت هلال
-const INFO_MARGIN_LEFT = CARD_HEIGHT * 0.55; // فاصله شروع متن از سمت چپ بعد از هلال
+const CIRCLE_SIZE = CARD_HEIGHT * 2;
+const INFO_MARGIN_LEFT = CARD_HEIGHT * 0.55;
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -93,7 +93,7 @@ const toEnglishDigits = (str) => {
 };
 
 const getDurationMeta = (key) =>
-  DURATION_UNITS.find((u) => u.key === key) || DURATION_UNITS[2]; // پیش‌فرض ماه
+  DURATION_UNITS.find((u) => u.key === key) || DURATION_UNITS[2];
 
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
@@ -129,13 +129,13 @@ export default function ProfileTab() {
   const [subscriptionModalVisible, setSubscriptionModalVisible] =
     useState(false);
   const [subName, setSubName] = useState("");
-  const [subDurationCount, setSubDurationCount] = useState(""); // کاربر تایپ می‌کند
-  const [subDurationUnit, setSubDurationUnit] = useState("month"); // day|week|month|year
+  const [subDurationCount, setSubDurationCount] = useState("");
+  const [subDurationUnit, setSubDurationUnit] = useState("month");
 
   const [subPrice, setSubPrice] = useState("");
   const [subDescription, setSubDescription] = useState("");
 
-  // مودال انتخاب تعداد ماه
+  // مودال انتخاب واحد زمان
   const [durationUnitPickerVisible, setDurationUnitPickerVisible] =
     useState(false);
 
@@ -230,33 +230,44 @@ export default function ProfileTab() {
     navigation.navigate("ProfileEdit");
   };
 
-  // وقتی لیست اشتراک تغییر کند → روی آخرین اشتراک اسکرول می‌کنیم
-  useEffect(() => {
-    if (!subScrollRef.current) return;
+  const pagesCount = subscriptions.length + 1; // اشتراک‌ها + صفحه ساخت
 
-    if (subscriptions.length === 0) {
-      subScrollRef.current.scrollTo({ x: 0, animated: false });
-      setActiveSubIndex(0);
-    } else {
-      const targetIndex = subscriptions.length - 1;
-      subScrollRef.current.scrollTo({
-        x: targetIndex * SCREEN_WIDTH,
-        animated: true,
+  const clampSubIndex = (i) => Math.max(0, Math.min(i, subscriptions.length)); // آخرین = create page
+
+  const scrollToSubIndex = (i, animated = true) => {
+    const idx = clampSubIndex(i);
+    requestAnimationFrame(() => {
+      subScrollRef.current?.scrollTo({
+        x: idx * CARD_WIDTH,
+        y: 0,
+        animated,
       });
-      setActiveSubIndex(targetIndex);
+    });
+  };
+
+  // وقتی اشتراک جدید اضافه شد → برو روی آخرین اشتراک (مثل قبل)
+  useEffect(() => {
+    if (subscriptions.length === 0) {
+      setActiveSubIndex(0);
+      scrollToSubIndex(0, false);
+      return;
     }
+    const last = subscriptions.length - 1;
+    setActiveSubIndex(last);
+    scrollToSubIndex(last, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscriptions.length]);
 
   const handleSubMomentumEnd = (event) => {
-    const x = event.nativeEvent.contentOffset.x;
-    const index = Math.round(x / PAGE_WIDTH);
+    const x = event.nativeEvent.contentOffset.x || 0;
+    const idx = clampSubIndex(Math.round(x / CARD_WIDTH));
+    if (idx !== activeSubIndex) setActiveSubIndex(idx);
+  };
 
-    const maxIndex = subscriptions.length; // چون +1 صفحه ساخت داریم
-    const clamped = Math.max(0, Math.min(index, maxIndex));
-
-    if (clamped !== activeSubIndex) {
-      setActiveSubIndex(clamped);
-    }
+  const handleDotPress = (idx) => {
+    const target = clampSubIndex(idx);
+    setActiveSubIndex(target);
+    scrollToSubIndex(target, true);
   };
 
   const handleAddSubscription = () => {
@@ -278,16 +289,11 @@ export default function ProfileTab() {
     const newSub = {
       id: Date.now().toString(),
       name: trimmedName || "اشتراک جدید",
-
-      // برای نمایش روی کارت
       durationLabel:
         durationDays > 0
           ? `${toPersianDigits(countNum)} ${durationMeta.label}`
           : "مدت زمان",
-
-      // مقدار قابل ارسال به بک‌اند (طبق خواسته شما)
-      durationDays, // <-- این را برای backend بفرستید
-
+      durationDays,
       priceText: trimmedPrice || "0",
       descriptionShort: trimmedDesc || "توضیحات بیشتر",
     };
@@ -318,8 +324,6 @@ export default function ProfileTab() {
       </View>
     );
   }
-
-  const pagesCount = subscriptions.length + 1; // اشتراک‌ها + صفحه ساخت
 
   return (
     <ScrollView
@@ -474,74 +478,84 @@ export default function ProfileTab() {
         <Text style={styles.sectionTitle}>اشتراک ها:</Text>
 
         <View style={styles.subSectionCardWrapper}>
-          <ScrollView
-            ref={subScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleSubMomentumEnd}
-            snapToInterval={PAGE_WIDTH}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            bounces={false}
-            alwaysBounceHorizontal={false}
-            scrollEventThrottle={16}
-          >
-            {/* اشتراک‌ها */}
-            {subscriptions.map((sub) => (
-              <View key={sub.id} style={styles.subscriptionPage}>
-                <View style={styles.subscriptionCard}>
-                  {/* هلال خاکستری گوشه چپ بالا */}
-                  <View style={styles.subscriptionCircle} />
+          {/* ✅ Viewport قفل شده: هیچ صفحه‌ای بیرون نمی‌زند */}
+          <View style={styles.subPagerViewport}>
+            <ScrollView
+              ref={subScrollRef}
+              horizontal
+              pagingEnabled
+              snapToInterval={CARD_WIDTH}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              bounces={false}
+              alwaysBounceHorizontal={false}
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleSubMomentumEnd}
+              scrollEventThrottle={16}
+              contentOffset={{ x: activeSubIndex * CARD_WIDTH, y: 0 }}
+            >
+              {subscriptions.map((sub) => (
+                <View key={sub.id} style={styles.subPagerPage}>
+                  <View style={styles.subscriptionCard}>
+                    <View style={styles.subscriptionCircle} />
 
-                  {/* بلاک قیمت داخل هلال */}
-                  <View style={styles.subscriptionPriceContainer}>
-                    <Text style={styles.subscriptionPriceText}>
-                      {formatPrice(sub.priceText) /* ✅ فرمت فارسی با ویرگول */}
-                    </Text>
-                    <Text style={styles.subscriptionPriceUnit}>تومان</Text>
-                  </View>
-
-                  {/* اطلاعات برنامه */}
-                  <View style={styles.subscriptionInfoBlock}>
-                    <Text style={styles.subscriptionName}>{sub.name}</Text>
-                    <Text style={styles.subscriptionDuration}>
-                      {sub.durationLabel}
-                    </Text>
-                    <View style={styles.subscriptionDivider} />
-                    <Pressable hitSlop={6}>
-                      <Text style={styles.subscriptionMore}>
-                        {sub.descriptionShort}
+                    <View style={styles.subscriptionPriceContainer}>
+                      <Text style={styles.subscriptionPriceText}>
+                        {formatPrice(sub.priceText)}
                       </Text>
-                    </Pressable>
+                      <Text style={styles.subscriptionPriceUnit}>تومان</Text>
+                    </View>
+
+                    <View style={styles.subscriptionInfoBlock}>
+                      <Text style={styles.subscriptionName}>{sub.name}</Text>
+                      <Text style={styles.subscriptionDuration}>
+                        {sub.durationLabel}
+                      </Text>
+                      <View style={styles.subscriptionDivider} />
+                      <Pressable hitSlop={6}>
+                        <Text style={styles.subscriptionMore}>
+                          {sub.descriptionShort}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
+              ))}
+
+              {/* صفحه‌ی ساخت اشتراک */}
+              <View style={styles.subPagerPage}>
+                <Pressable
+                  style={styles.createSubscriptionCard}
+                  onPress={() => setSubscriptionModalVisible(true)}
+                >
+                  <View style={styles.createPlusCircle}>
+                    <AntDesign
+                      name="plus"
+                      size={ms(22)}
+                      color={COLORS.primary}
+                    />
+                  </View>
+                </Pressable>
               </View>
-            ))}
+            </ScrollView>
+          </View>
 
-            {/* صفحه‌ی ساخت اشتراک – سمت راست‌ترین */}
-            <View style={styles.subscriptionPage}>
-              <Pressable
-                style={styles.createSubscriptionCard}
-                onPress={() => setSubscriptionModalVisible(true)}
-              >
-                <View style={styles.createPlusCircle}>
-                  <AntDesign name="plus" size={ms(22)} color={COLORS.primary} />
-                </View>
-              </Pressable>
-            </View>
-          </ScrollView>
-
-          {/* دایره‌های اسلایدر */}
+          {/* دایره‌های اسلایدر + کلیک */}
           <View style={styles.subDotsRow}>
             {Array.from({ length: pagesCount }).map((_, idx) => (
-              <View
+              <Pressable
                 key={idx}
-                style={[
-                  styles.subDot,
-                  idx === activeSubIndex && styles.subDotActive,
-                ]}
-              />
+                onPress={() => handleDotPress(idx)}
+                hitSlop={10}
+              >
+                <View
+                  style={[
+                    styles.subDot,
+                    idx === activeSubIndex && styles.subDotActive,
+                  ]}
+                />
+              </Pressable>
             ))}
           </View>
         </View>
@@ -584,7 +598,6 @@ export default function ProfileTab() {
       </View>
 
       {/* مودال ساخت اشتراک */}
-      {/* مودال ساخت اشتراک */}
       <Modal
         visible={subscriptionModalVisible}
         transparent
@@ -614,7 +627,7 @@ export default function ProfileTab() {
                 />
               </View>
 
-              {/* مدت زمان (عدد نقطه‌چین + واحد) */}
+              {/* مدت زمان */}
               <View style={styles.subField}>
                 <View style={[styles.subInput, styles.subDurationField]}>
                   <Text style={styles.subDurationLabel}>مدت زمان:</Text>
@@ -695,7 +708,7 @@ export default function ProfileTab() {
         </View>
       </Modal>
 
-      {/* مودال انتخاب تعداد ماه */}
+      {/* مودال انتخاب واحد زمان */}
       <Modal
         visible={durationUnitPickerVisible}
         transparent
@@ -771,12 +784,8 @@ export default function ProfileTab() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: ms(32),
-  },
+  container: { flex: 1 },
+  contentContainer: { paddingBottom: ms(32) },
 
   header: {
     flexDirection: "row-reverse",
@@ -808,11 +817,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: ms(55),
-  },
+  avatarImage: { width: "100%", height: "100%", borderRadius: ms(55) },
   name: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(16),
@@ -827,19 +832,14 @@ const styles = StyleSheet.create({
     marginBottom: ms(4),
     marginLeft: ms(20),
   },
-  locationRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-  },
+  locationRow: { flexDirection: "row-reverse", alignItems: "center" },
   locationText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.white,
   },
 
-  section: {
-    marginBottom: ms(12),
-  },
+  section: { marginBottom: ms(12) },
   sectionTitle: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(13),
@@ -853,10 +853,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(16),
     paddingVertical: ms(12),
   },
-  descCard: {
-    minHeight: ms(90),
-    justifyContent: "flex-start",
-  },
+  descCard: { minHeight: ms(90), justifyContent: "flex-start" },
   cardText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
@@ -898,14 +895,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: ms(12),
   },
-  contactBtnDisabled: {
-    opacity: 0.4,
-  },
+  contactBtnDisabled: { opacity: 0.4 },
 
-  certificateCard: {
-    height: ms(70),
-    justifyContent: "center",
-  },
+  certificateCard: { height: ms(70), justifyContent: "center" },
   certificateThumbWrapper: {
     width: "100%",
     height: "100%",
@@ -913,10 +905,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignSelf: "flex-end",
   },
-  certificateThumb: {
-    width: "100%",
-    height: "100%",
-  },
+  certificateThumb: { width: "100%", height: "100%" },
   certificateOverlay: {
     position: "absolute",
     bottom: 0,
@@ -934,10 +923,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  fullModalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-  },
+  fullModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
   fullModalContent: {
     position: "absolute",
     top: 0,
@@ -947,10 +933,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  fullModalImage: {
-    width: "90%",
-    height: "80%",
-  },
+  fullModalImage: { width: "90%", height: "80%" },
   fullModalClose: {
     position: "absolute",
     top: ms(40),
@@ -1000,19 +983,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // ---------- اشتراک‌ها / اسلایدر ----------
+  // ---------- اشتراک‌ها ----------
   subSectionCardWrapper: {
     backgroundColor: "transparent",
     alignItems: "center",
   },
 
-  subscriptionPage: {
-    width: PAGE_WIDTH,
-    paddingHorizontal: (PAGE_WIDTH - CARD_WIDTH) / 2, // کارت دقیقاً وسط و “فیکس”
+  // ✅ این ویو باعث میشه هیچ اسلایدی بیرون نزنه
+  subPagerViewport: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: ms(24),
+    overflow: "hidden",
+    alignSelf: "center",
+  },
+  subPagerPage: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
   },
 
   createSubscriptionCard: {
-    width: CARD_WIDTH, // ✅ خود کارت کوچک‌تر از صفحه
+    width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: ms(24),
     backgroundColor: COLORS.inputBg2,
@@ -1021,7 +1012,7 @@ const styles = StyleSheet.create({
   },
 
   subscriptionCard: {
-    width: CARD_WIDTH, // ✅ خود کارت کوچک‌تر از صفحه
+    width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: ms(24),
     backgroundColor: COLORS.lighgreen,
@@ -1104,9 +1095,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.lighgreen,
     marginHorizontal: ms(3),
   },
-  subDotActive: {
-    backgroundColor: COLORS.lighgreen,
-  },
+  subDotActive: { backgroundColor: COLORS.lighgreen },
 
   // ---------- مودال ساخت اشتراک ----------
   subModalContent: {
@@ -1139,13 +1128,8 @@ const styles = StyleSheet.create({
     fontSize: ms(20),
     color: COLORS.white2,
   },
-  subModalBody: {
-    paddingHorizontal: ms(20),
-    paddingVertical: ms(16),
-  },
-  subField: {
-    marginBottom: ms(10),
-  },
+  subModalBody: { paddingHorizontal: ms(20), paddingVertical: ms(16) },
+  subField: { marginBottom: ms(10) },
   subInput: {
     backgroundColor: COLORS.inputBg,
     borderRadius: ms(10),
@@ -1157,10 +1141,7 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     color: COLORS.text3,
   },
-  subInputMultiline: {
-    minHeight: ms(70),
-    textAlignVertical: "top",
-  },
+  subInputMultiline: { minHeight: ms(70), textAlignVertical: "top" },
 
   subDurationField: {
     flexDirection: "row-reverse",
@@ -1173,30 +1154,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginLeft: ms(10),
   },
-  subDurationRightSide: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-  },
-  subDurationUnitBox: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    backgroundColor: COLORS.inputBg2,
-    borderRadius: ms(999),
-    paddingHorizontal: ms(10),
-    paddingVertical: ms(4),
-    marginLeft: ms(8),
-  },
-  subDurationUnitText: {
-    fontFamily: "Vazirmatn_400Regular",
-    fontSize: ms(11),
-    color: COLORS.text,
-    marginLeft: ms(4),
-  },
-  subDurationValueText: {
-    fontFamily: "Vazirmatn_400Regular",
-    fontSize: ms(12),
-    color: COLORS.text,
-  },
+  subDurationRightSide: { flexDirection: "row-reverse", alignItems: "center" },
 
   subSubmitButton: {
     marginTop: ms(18),
@@ -1235,7 +1193,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
 
-  // اصلاح ظاهر باکس واحد (شبیه فیگما: باکس، نه pill)
+  // باکس واحد زمان (همان استایل خودت)
   subDurationUnitBox: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -1244,8 +1202,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: ms(10),
     height: ms(28),
   },
+  subDurationUnitText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(11),
+    color: COLORS.text,
+    marginLeft: ms(4),
+  },
 
-  // گرید انتخاب واحد
   durationUnitGrid: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
@@ -1261,19 +1224,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: ms(10),
   },
-  durationUnitItemActive: {
-    backgroundColor: COLORS.primary,
-  },
+  durationUnitItemActive: { backgroundColor: COLORS.primary },
   durationUnitItemText: {
     fontFamily: "Vazirmatn_400Regular",
     fontSize: ms(12),
     color: COLORS.text,
   },
-  durationUnitItemTextActive: {
-    color: COLORS.white,
-  },
+  durationUnitItemTextActive: { color: COLORS.white },
 
-  // ---------- مودال انتخاب ماه ----------
   monthPickerContent: {
     position: "absolute",
     top: 0,
@@ -1296,30 +1254,5 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: "center",
     marginBottom: ms(10),
-  },
-  monthPickerGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  monthPickerItem: {
-    width: "22%",
-    marginBottom: ms(8),
-    borderRadius: ms(10),
-    backgroundColor: COLORS.inputBg,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: ms(6),
-  },
-  monthPickerItemActive: {
-    backgroundColor: COLORS.primary,
-  },
-  monthPickerItemText: {
-    fontFamily: "Vazirmatn_400Regular",
-    fontSize: ms(12),
-    color: COLORS.text,
-  },
-  monthPickerItemTextActive: {
-    color: COLORS.white,
   },
 });
