@@ -8,6 +8,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
 import ProfileTab from "../../components/home/ProfileTab";
+import HomeTab from "../../components/home/HomeTab";
 
 export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
@@ -15,9 +16,15 @@ export default function HomeScreen() {
   const renderContent = () => {
     if (activeTab === "home") {
       return (
-        <View style={styles.centerContent}>
-          <Text style={styles.contentText}>صفحه هوم</Text>
-        </View>
+        <HomeTab
+          onPressProfile={() => setActiveTab("profile")}
+          onPressAllTrainers={() => {
+            // TODO: وقتی صفحهٔ لیست مربی‌ها را ساختی اینجا navigation بده
+          }}
+          onPressAllCategories={() => {
+            // TODO: وقتی صفحهٔ لیست رشته‌ها را ساختی اینجا navigation بده
+          }}
+        />
       );
     }
     if (activeTab === "workout") {
