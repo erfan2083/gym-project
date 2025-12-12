@@ -28,6 +28,9 @@ import InstaIcon from "../ui/Instaicon";
 import {
   getMyTrainerProfile,
   getTrainerRatingSummary,
+  // ✅ پلن‌ها
+  createTrainerPlan,
+  getMyTrainerPlans,
 } from "../../../api/trainer.js";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -50,10 +53,19 @@ const toPersianDigits = (str) => {
 
 // ✅ فرمت مبلغ: فقط رقم، سه‌رقم سه‌رقم با ویرگول، و اعداد فارسی
 const formatPrice = (value) => {
-  if (!value) return "۰";
-  const numeric = String(value).replace(/[^\d]/g, "");
-  if (!numeric) return "۰";
-  const withCommas = numeric.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (value === undefined || value === null) return "۰";
+
+  // 1) تبدیل به string و حذف ویرگول و فاصله
+  const raw = String(value).replace(/,/g, "").trim();
+
+  // 2) اگر decimal داشت (مثل 5000000.00) فقط بخش قبل از نقطه را بردار
+  const integerPart = raw.includes(".") ? raw.split(".")[0] : raw;
+
+  // 3) فقط رقم‌ها
+  const digitsOnly = integerPart.replace(/[^\d]/g, "");
+  if (!digitsOnly) return "۰";
+
+  const withCommas = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return toPersianDigits(withCommas);
 };
 
@@ -95,6 +107,30 @@ const toEnglishDigits = (str) => {
 const getDurationMeta = (key) =>
   DURATION_UNITS.find((u) => u.key === key) || DURATION_UNITS[2];
 
+// ✅ تبدیل پلن دیتابیس به مدل کارت‌های فعلی UI
+const mapPlanRowToSubscriptionCard = (planRow) => {
+  // خروجی API: duration_in_days, created_at, ...
+  const durationDays =
+    typeof planRow?.duration_in_days === "number"
+      ? planRow.duration_in_days
+      : Number(planRow?.duration_in_days || 0);
+
+  const price =
+    planRow?.price !== undefined && planRow?.price !== null
+      ? String(planRow.price)
+      : "0";
+
+  return {
+    id: String(planRow?.id ?? Date.now()),
+    name: planRow?.title || "اشتراک",
+    durationLabel:
+      durationDays > 0 ? `${toPersianDigits(durationDays)} روز` : "مدت زمان",
+    durationDays: durationDays > 0 ? durationDays : 0,
+    priceText: price,
+    descriptionShort: planRow?.description || "توضیحات بیشتر",
+  };
+};
+
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
   const setProfile = useProfileStore((state) => state.setProfile);
@@ -116,6 +152,9 @@ export default function ProfileTab() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ لودینگ ساخت پلن
+  const [planSubmitting, setPlanSubmitting] = useState(false);
 
   const navigation = useNavigation();
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
@@ -139,6 +178,7 @@ export default function ProfileTab() {
   const [durationUnitPickerVisible, setDurationUnitPickerVisible] =
     useState(false);
 
+  // -------------------- گرفتن پروفایل مربی --------------------
   useEffect(() => {
     let isMounted = true;
 
@@ -186,6 +226,36 @@ export default function ProfileTab() {
       isMounted = false;
     };
   }, [setProfile]);
+
+  // -------------------- گرفتن پلن‌های واقعی مربی --------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchMyPlans = async () => {
+      try {
+        // API فقط برای مربی لاگین‌شده
+        const plans = await getMyTrainerPlans();
+        if (!isMounted) return;
+
+        if (Array.isArray(plans)) {
+          const mappedPlans = plans.map(mapPlanRowToSubscriptionCard);
+          setSubscriptions(mappedPlans);
+        } else {
+          setSubscriptions([]);
+        }
+      } catch (e) {
+        if (!isMounted) return;
+        // خطای پلن‌ها نباید کل صفحه رو خراب کنه، فقط لاگ می‌کنیم
+        console.log("Error loading trainer plans:", e?.message || e);
+      }
+    };
+
+    fetchMyPlans();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // حیطه تخصصی
   let specialties = [];
@@ -270,7 +340,8 @@ export default function ProfileTab() {
     scrollToSubIndex(target, true);
   };
 
-  const handleAddSubscription = () => {
+  // ✅ اینجا دمو رو حذف کردیم و مستقیم پلن رو در بک‌اند می‌سازیم
+  const handleAddSubscription = async () => {
     const trimmedName = subName.trim();
     const trimmedPrice = subPrice.trim();
     const trimmedDesc = subDescription.trim();
@@ -286,27 +357,62 @@ export default function ProfileTab() {
         ? countNum * durationMeta.days
         : 0;
 
-    const newSub = {
-      id: Date.now().toString(),
-      name: trimmedName || "اشتراک جدید",
-      durationLabel:
-        durationDays > 0
-          ? `${toPersianDigits(countNum)} ${durationMeta.label}`
-          : "مدت زمان",
-      durationDays,
-      priceText: trimmedPrice || "0",
-      descriptionShort: trimmedDesc || "توضیحات بیشتر",
-    };
+    if (!trimmedName) {
+      setError("نام اشتراک را وارد کنید");
+      return;
+    }
 
-    setSubscriptions((prev) => [...prev, newSub]);
+    if (!durationDays || durationDays <= 0) {
+      setError("مدت زمان معتبر وارد کنید");
+      return;
+    }
 
-    setSubName("");
-    setSubDurationCount("");
-    setSubDurationUnit("month");
-    setSubPrice("");
-    setSubDescription("");
+    // قیمت: فقط عدد
+    const priceNumeric = Number(
+      toEnglishDigits(trimmedPrice || "").replace(/[^\d]/g, "")
+    );
 
-    setSubscriptionModalVisible(false);
+    if (!Number.isFinite(priceNumeric) || priceNumeric < 0) {
+      setError("قیمت معتبر وارد کنید");
+      return;
+    }
+
+    try {
+      setError("");
+      setPlanSubmitting(true);
+
+      // ✅ ایجاد پلن در سرور
+      await createTrainerPlan({
+        title: trimmedName,
+        description: trimmedDesc || null,
+        price: priceNumeric,
+        durationInDays: durationDays,
+      });
+
+      // ✅ بعد از ساخت، لیست پلن‌ها را دوباره از سرور بگیر
+      const plans = await getMyTrainerPlans();
+      if (Array.isArray(plans)) {
+        const mappedPlans = plans.map(mapPlanRowToSubscriptionCard);
+        setSubscriptions(mappedPlans);
+      }
+
+      // ریست فرم
+      setSubName("");
+      setSubDurationCount("");
+      setSubDurationUnit("month");
+      setSubPrice("");
+      setSubDescription("");
+
+      setSubscriptionModalVisible(false);
+    } catch (e) {
+      setError(
+        e?.response?.data?.message ||
+          e.message ||
+          "خطا در ساخت اشتراک (پلن)"
+      );
+    } finally {
+      setPlanSubmitting(false);
+    }
   };
 
   if (loading && !profile?.username) {
@@ -697,11 +803,31 @@ export default function ProfileTab() {
                 />
               </View>
 
+              {/* ✅ پیام خطا (بدون تغییر UI کلی) */}
+              {!!error && (
+                <Text
+                  style={{
+                    color: COLORS.danger,
+                    textAlign: "right",
+                    fontFamily: "Vazirmatn_400Regular",
+                    fontSize: ms(11),
+                    marginBottom: ms(8),
+                  }}
+                >
+                  {error}
+                </Text>
+              )}
+
               <Pressable
                 style={styles.subSubmitButton}
                 onPress={handleAddSubscription}
+                disabled={planSubmitting}
               >
-                <Text style={styles.subSubmitButtonText}>افزودن</Text>
+                {planSubmitting ? (
+                  <ActivityIndicator size="small" color={COLORS.white2} />
+                ) : (
+                  <Text style={styles.subSubmitButtonText}>افزودن</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -1007,6 +1133,15 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT,
     borderRadius: ms(24),
     backgroundColor: COLORS.inputBg2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  createPlusCircle: {
+    width: ms(52),
+    height: ms(52),
+    borderRadius: ms(26),
+    backgroundColor: COLORS.inputBg,
     justifyContent: "center",
     alignItems: "center",
   },

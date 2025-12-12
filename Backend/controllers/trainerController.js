@@ -437,10 +437,10 @@ export const createPlan = async (req, res) => {
 
   try {
     // CALL "gym-project".create_plan(IN p_trainer_id, IN p_title, IN p_description, IN p_price, IN p_duration_days, OUT o_plan_id)
-    await pool.query(
-      'CALL "gym-project".create_plan($1, $2, $3, $4, $5)',
-      [trainerId, title, description || null, priceNum, duration]
-    );
+  await pool.query(
+    `SELECT "gym-project".create_plan_fn($1,$2,$3,$4,$5) as plan_id`,
+    [trainerId, title, description ?? null, priceNum, duration]
+  );
 
     // اگر خواستی می‌تونی بعدش لیست پلن‌ها یا همون پلن رو دوباره SELECT کنی
     return res
