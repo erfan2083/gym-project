@@ -57,6 +57,44 @@ const formatPrice = (value) => {
   return toPersianDigits(withCommas);
 };
 
+const DURATION_UNITS = [
+  { key: "day", label: "روز", days: 1 },
+  { key: "week", label: "هفته", days: 7 },
+  { key: "month", label: "ماه", days: 31 },
+  { key: "year", label: "سال", days: 365 },
+];
+
+// تبدیل ارقام فارسی/عربی به انگلیسی برای محاسبه
+const toEnglishDigits = (str) => {
+  const map = {
+    "۰": "0",
+    "۱": "1",
+    "۲": "2",
+    "۳": "3",
+    "۴": "4",
+    "۵": "5",
+    "۶": "6",
+    "۷": "7",
+    "۸": "8",
+    "۹": "9",
+    "٠": "0",
+    "١": "1",
+    "٢": "2",
+    "٣": "3",
+    "٤": "4",
+    "٥": "5",
+    "٦": "6",
+    "٧": "7",
+    "٨": "8",
+    "٩": "9",
+  };
+
+  return String(str).replace(/[۰-۹٠-٩]/g, (d) => map[d] ?? d);
+};
+
+const getDurationMeta = (key) =>
+  DURATION_UNITS.find((u) => u.key === key) || DURATION_UNITS[2]; // پیش‌فرض ماه
+
 export default function ProfileTab() {
   const profile = useProfileStore((state) => state.profile);
   const setProfile = useProfileStore((state) => state.setProfile);
@@ -91,12 +129,15 @@ export default function ProfileTab() {
   const [subscriptionModalVisible, setSubscriptionModalVisible] =
     useState(false);
   const [subName, setSubName] = useState("");
-  const [subDurationCount, setSubDurationCount] = useState(null);
+  const [subDurationCount, setSubDurationCount] = useState(""); // کاربر تایپ می‌کند
+  const [subDurationUnit, setSubDurationUnit] = useState("month"); // day|week|month|year
+
   const [subPrice, setSubPrice] = useState("");
   const [subDescription, setSubDescription] = useState("");
 
   // مودال انتخاب تعداد ماه
-  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [durationUnitPickerVisible, setDurationUnitPickerVisible] =
+    useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -206,11 +247,15 @@ export default function ProfileTab() {
     }
   }, [subscriptions.length]);
 
-  const handleSubScroll = (event) => {
+  const handleSubMomentumEnd = (event) => {
     const x = event.nativeEvent.contentOffset.x;
-    const index = Math.round(x / PAGE_WIDTH); // ✅ تقسیم بر عرض صفحه
-    if (index !== activeSubIndex) {
-      setActiveSubIndex(index);
+    const index = Math.round(x / PAGE_WIDTH);
+
+    const maxIndex = subscriptions.length; // چون +1 صفحه ساخت داریم
+    const clamped = Math.max(0, Math.min(index, maxIndex));
+
+    if (clamped !== activeSubIndex) {
+      setActiveSubIndex(clamped);
     }
   };
 
@@ -219,10 +264,30 @@ export default function ProfileTab() {
     const trimmedPrice = subPrice.trim();
     const trimmedDesc = subDescription.trim();
 
+    const durationMeta = getDurationMeta(subDurationUnit);
+    const countNum = Number.parseInt(
+      toEnglishDigits(subDurationCount || "").replace(/[^\d]/g, ""),
+      10
+    );
+
+    const durationDays =
+      Number.isFinite(countNum) && countNum > 0
+        ? countNum * durationMeta.days
+        : 0;
+
     const newSub = {
       id: Date.now().toString(),
       name: trimmedName || "اشتراک جدید",
-      durationLabel: subDurationCount ? `${subDurationCount} ماه` : "مدت زمان",
+
+      // برای نمایش روی کارت
+      durationLabel:
+        durationDays > 0
+          ? `${toPersianDigits(countNum)} ${durationMeta.label}`
+          : "مدت زمان",
+
+      // مقدار قابل ارسال به بک‌اند (طبق خواسته شما)
+      durationDays, // <-- این را برای backend بفرستید
+
       priceText: trimmedPrice || "0",
       descriptionShort: trimmedDesc || "توضیحات بیشتر",
     };
@@ -230,7 +295,8 @@ export default function ProfileTab() {
     setSubscriptions((prev) => [...prev, newSub]);
 
     setSubName("");
-    setSubDurationCount(null);
+    setSubDurationCount("");
+    setSubDurationUnit("month");
     setSubPrice("");
     setSubDescription("");
 
@@ -411,9 +477,14 @@ export default function ProfileTab() {
           <ScrollView
             ref={subScrollRef}
             horizontal
-            pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onScroll={handleSubScroll}
+            onMomentumScrollEnd={handleSubMomentumEnd}
+            snapToInterval={PAGE_WIDTH}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum
+            bounces={false}
+            alwaysBounceHorizontal={false}
             scrollEventThrottle={16}
           >
             {/* اشتراک‌ها */}
@@ -513,6 +584,7 @@ export default function ProfileTab() {
       </View>
 
       {/* مودال ساخت اشتراک */}
+      {/* مودال ساخت اشتراک */}
       <Modal
         visible={subscriptionModalVisible}
         transparent
@@ -530,7 +602,7 @@ export default function ProfileTab() {
             </View>
 
             <View style={styles.subModalBody}>
-              {/* نام اشتراک - لیبل داخل فیلد */}
+              {/* نام اشتراک */}
               <View style={styles.subField}>
                 <TextInput
                   style={styles.subInput}
@@ -542,33 +614,46 @@ export default function ProfileTab() {
                 />
               </View>
 
-              {/* مدت زمان - فیلد پِل */}
+              {/* مدت زمان (عدد نقطه‌چین + واحد) */}
               <View style={styles.subField}>
-                <Pressable
-                  style={[styles.subInput, styles.subDurationField]}
-                  onPress={() => setMonthPickerVisible(true)}
-                >
+                <View style={[styles.subInput, styles.subDurationField]}>
                   <Text style={styles.subDurationLabel}>مدت زمان:</Text>
+
                   <View style={styles.subDurationRightSide}>
-                    <View style={styles.subDurationUnitBox}>
-                      <Text style={styles.subDurationUnitText}>ماه</Text>
+                    <View style={styles.subDurationCountBox}>
+                      <TextInput
+                        style={styles.subDurationCountInput}
+                        placeholder="----"
+                        placeholderTextColor={COLORS.text2}
+                        keyboardType="numeric"
+                        value={subDurationCount}
+                        onChangeText={(t) => {
+                          const normalized = toEnglishDigits(t).replace(
+                            /[^\d]/g,
+                            ""
+                          );
+                          setSubDurationCount(normalized);
+                        }}
+                        textAlign="center"
+                      />
+                    </View>
+
+                    <Pressable
+                      style={styles.subDurationUnitBox}
+                      onPress={() => setDurationUnitPickerVisible(true)}
+                    >
+                      <Text style={styles.subDurationUnitText}>
+                        {getDurationMeta(subDurationUnit).label}
+                      </Text>
                       <AntDesign
                         name="down"
                         size={ms(10)}
                         color={COLORS.text}
                         style={{ marginRight: ms(4) }}
                       />
-                    </View>
-                    <Text
-                      style={[
-                        styles.subDurationValueText,
-                        !subDurationCount && { color: COLORS.text2 },
-                      ]}
-                    >
-                      {subDurationCount ?? "..."}
-                    </Text>
+                    </Pressable>
                   </View>
-                </Pressable>
+                </View>
               </View>
 
               {/* قیمت */}
@@ -612,39 +697,40 @@ export default function ProfileTab() {
 
       {/* مودال انتخاب تعداد ماه */}
       <Modal
-        visible={monthPickerVisible}
+        visible={durationUnitPickerVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setMonthPickerVisible(false)}
+        onRequestClose={() => setDurationUnitPickerVisible(false)}
       >
         <Pressable
           style={styles.fullModalBackdrop}
-          onPress={() => setMonthPickerVisible(false)}
+          onPress={() => setDurationUnitPickerVisible(false)}
         />
         <View style={styles.monthPickerContent}>
           <View style={styles.monthPickerCard}>
-            <Text style={styles.monthPickerTitle}>انتخاب مدت (ماه)</Text>
-            <View style={styles.monthPickerGrid}>
-              {MONTH_OPTIONS.map((m) => (
+            <Text style={styles.monthPickerTitle}>انتخاب واحد زمان</Text>
+
+            <View style={styles.durationUnitGrid}>
+              {DURATION_UNITS.map((u) => (
                 <Pressable
-                  key={m}
+                  key={u.key}
                   style={[
-                    styles.monthPickerItem,
-                    subDurationCount === m && styles.monthPickerItemActive,
+                    styles.durationUnitItem,
+                    subDurationUnit === u.key && styles.durationUnitItemActive,
                   ]}
                   onPress={() => {
-                    setSubDurationCount(m);
-                    setMonthPickerVisible(false);
+                    setSubDurationUnit(u.key);
+                    setDurationUnitPickerVisible(false);
                   }}
                 >
                   <Text
                     style={[
-                      styles.monthPickerItemText,
-                      subDurationCount === m &&
-                        styles.monthPickerItemTextActive,
+                      styles.durationUnitItemText,
+                      subDurationUnit === u.key &&
+                        styles.durationUnitItemTextActive,
                     ]}
                   >
-                    {m}
+                    {u.label}
                   </Text>
                 </Pressable>
               ))}
@@ -921,8 +1007,8 @@ const styles = StyleSheet.create({
   },
 
   subscriptionPage: {
-    width: PAGE_WIDTH, // ✅ کل عرض گوشی
-    alignItems: "center",
+    width: PAGE_WIDTH,
+    paddingHorizontal: (PAGE_WIDTH - CARD_WIDTH) / 2, // کارت دقیقاً وسط و “فیکس”
   },
 
   createSubscriptionCard: {
@@ -1013,12 +1099,13 @@ const styles = StyleSheet.create({
     width: ms(7),
     height: ms(7),
     borderRadius: ms(3.5),
-    backgroundColor: COLORS.primary,
-    opacity: 0.3,
+    backgroundColor: "transparent",
+    borderWidth: ms(1.2),
+    borderColor: COLORS.lighgreen,
     marginHorizontal: ms(3),
   },
   subDotActive: {
-    opacity: 1,
+    backgroundColor: COLORS.lighgreen,
   },
 
   // ---------- مودال ساخت اشتراک ----------
@@ -1125,6 +1212,65 @@ const styles = StyleSheet.create({
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(14),
     color: COLORS.white2,
+  },
+  subDurationCountBox: {
+    backgroundColor: COLORS.inputBg2,
+    borderRadius: ms(6),
+    borderWidth: ms(1.2),
+    borderColor: COLORS.text,
+    borderStyle: "dashed",
+    minWidth: ms(70),
+    height: ms(28),
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: ms(8),
+  },
+  subDurationCountInput: {
+    width: "100%",
+    height: "100%",
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+
+  // اصلاح ظاهر باکس واحد (شبیه فیگما: باکس، نه pill)
+  subDurationUnitBox: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: COLORS.inputBg2,
+    borderRadius: ms(6),
+    paddingHorizontal: ms(10),
+    height: ms(28),
+  },
+
+  // گرید انتخاب واحد
+  durationUnitGrid: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: ms(10),
+  },
+  durationUnitItem: {
+    width: "48%",
+    marginBottom: ms(10),
+    borderRadius: ms(10),
+    backgroundColor: COLORS.inputBg,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: ms(10),
+  },
+  durationUnitItemActive: {
+    backgroundColor: COLORS.primary,
+  },
+  durationUnitItemText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+  },
+  durationUnitItemTextActive: {
+    color: COLORS.white,
   },
 
   // ---------- مودال انتخاب ماه ----------
