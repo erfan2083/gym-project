@@ -10,6 +10,7 @@ const initialProfile = {
   phone: "",
   instagram: "",
   telegram: "",
+  role: null,
 };
 
 export const useProfileStore = create((set) => ({
