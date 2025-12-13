@@ -209,10 +209,30 @@ export const getTrainerPlans = async (trainerId) => {
 
 
 export const getTopTrainers = async (limit = 3) => {
-  const res = await api.get(`/api/user/top-trainers?limit=${limit}`);
-  // اگر بک‌اندت مستقیم آرایه برگردوند:
-  if (Array.isArray(res.data)) return res.data;
+  try {
+    const res = await api.get(`/api/trainer/top-trainers?limit=${limit}`);
+    
+    // گرفتن آرایه خام از ریسپانس
+    const rawList = Array.isArray(res.data) 
+      ? res.data 
+      : (res.data?.trainers || []);
 
-  // اگر بک‌اندت آبجکت برگردوند:
-  return res.data?.trainers || [];
+    // تبدیل داده‌های دیتابیس (snake_case) به فرمت استاندارد کامپوننت (camelCase)
+    return rawList.map(item => ({
+      id: item.id,
+      // دیتابیس full_name میدهد، ما name میخواهیم
+      name: item.full_name || item.username || "مربی",
+      // دیتابیس avatar_url میدهد
+      avatarUrl: item.avatar_url || null, 
+      username: item.username,
+      city: item.city || "نامشخص",
+      // تبدیل رشته به عدد برای اطمینان
+      rating: Number(item.rating) || 0,
+      reviewCount: Number(item.review_count) || 0,
+    }));
+
+  } catch (error) {
+    console.error("Error fetching top trainers:", error);
+    return [];
+  }
 };

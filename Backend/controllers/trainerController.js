@@ -609,3 +609,48 @@ export const getTrainerPlansPublic = async (req, res) => {
     });
   }
 };
+
+
+
+export const getTopTrainers = async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 3;
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        u.id,
+        u.full_name,
+        u.avatar_url,
+        tp.username,
+        tp.city,
+        COALESCE(AVG(r.rating)::NUMERIC(3,2), 0) AS rating,
+        COUNT(r.id)::INT AS review_count
+      FROM "gym-project"."User" u
+      JOIN "gym-project".trainerprofile tp
+        ON tp.user_id = u.id
+      LEFT JOIN "gym-project".review r
+        ON r.trainer_id = u.id
+      WHERE u.role = 'coach'
+      GROUP BY
+        u.id,
+        u.full_name,
+        u.avatar_url,
+        tp.username,
+        tp.city
+      ORDER BY rating DESC, review_count DESC
+      LIMIT $1
+      `,
+      [limit]
+    );
+
+    return res.json({
+      trainers: rows,
+    });
+  } catch (err) {
+    console.error("getTopTrainers error:", err);
+    return res.status(500).json({
+      message: "Failed to fetch top trainers",
+    });
+  }
+};

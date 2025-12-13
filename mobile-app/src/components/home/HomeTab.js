@@ -1,7 +1,5 @@
 // src/components/home/HomeTab.js
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { Image } from "react-native";
-
 import {
   View,
   Text,
@@ -12,11 +10,12 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  Image,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
-import TopTrainerCard from "../ui/TopTrainerCard";
+import TopTrainerCard from "../ui/TopTrainerCard"; //
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -24,13 +23,11 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HomeDumbbell from "../ui/HomeDumbbell";
 import Yogaicon from "../ui/Yogaicon";
 
-// ✅ اینو باید از فایل API خودت import کنی
-// مسیر رو اگر APIت جای دیگه است عوض کن
-import { getTopTrainers } from "../../api/trainer";
+// ایمپورت API
+import { getTopTrainers } from "../../../api/trainer"; //
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// این مقدار باید با paddingHorizontal در HomeScreen هماهنگ باشد
 const SIDE_PADDING = ms(30);
 const CONTENT_WIDTH = SCREEN_WIDTH - SIDE_PADDING * 2;
 
@@ -39,7 +36,7 @@ const HERO_CARD_HEIGHT = ms(112);
 const TRAINER_GAP = ms(10);
 const TRAINER_CARD_WIDTH = (CONTENT_WIDTH - TRAINER_GAP * 2) / 3;
 
-// اسلایدهای بالای صفحه (۳ تا برای ۳ دات)
+// اسلایدهای بالای صفحه
 const HERO_SLIDES = [
   {
     id: "s1",
@@ -61,11 +58,11 @@ const HERO_SLIDES = [
   },
 ];
 
-// داده نمونه برای بهترین مربی‌ها (Fallback فقط برای زمانی که API لود نشده یا خطا داده)
-const TOP_TRAINERS = [
-  { id: "t1", name: "نام مربی", rating: 4.5, city: "شهر" },
-  { id: "t2", name: "نام مربی", rating: 4.5, city: "شهر" },
-  { id: "t3", name: "نام مربی", rating: 4.5, city: "شهر" },
+// داده فال‌بک (اگر اینترنت نبود یا لیست خالی بود)
+const TOP_TRAINERS_FALLBACK = [
+  { id: "t1", name: "نام مربی", rating: 4.5, city: "تهران" },
+  { id: "t2", name: "نام مربی", rating: 4.0, city: "شیراز" },
+  { id: "t3", name: "نام مربی", rating: 5.0, city: "مشهد" },
 ];
 
 // دسته‌بندی‌ها
@@ -99,7 +96,7 @@ export default function HomeTab({
   onPressProfile,
   onPressAllTrainers,
   onPressAllCategories,
-  onPressTrainer, // ✅ اختیاری: اگر خواستی کلیک روی کارت‌ها ناوبری کنه
+  onPressTrainer,
 }) {
   const profile = useProfileStore((state) => state.profile);
 
@@ -114,7 +111,7 @@ export default function HomeTab({
   const [query, setQuery] = useState("");
 
   // ---------------------------
-  // ✅ Top Trainers from API
+  // Top Trainers Data
   // ---------------------------
   const [topTrainers, setTopTrainers] = useState([]);
   const [topLoading, setTopLoading] = useState(true);
@@ -125,18 +122,32 @@ export default function HomeTab({
     (async () => {
       try {
         setTopLoading(true);
-
+        // فراخوانی API
         const list = await getTopTrainers(3);
 
-        // انتظار داریم list آرایه‌ای از {id,name,rating,city,...} باشه
-        const normalized = Array.isArray(list) ? list : [];
         if (!mounted) return;
 
-        setTopTrainers(normalized);
+        // اگر API دیتا داد، آن را ست می‌کنیم
+        if (Array.isArray(list) && list.length > 0) {
+          // اینجا یک نگاشت (Map) انجام می‌دهیم تا اگر بک‌اند full_name داد
+          // و کامپوننت name می‌خواست، مشکلی پیش نیاید.
+          const normalized = list.map((item) => ({
+            id: item.id,
+            // بک‌اند full_name می‌دهد، کامپوننت name می‌خواهد
+            name: item.name || item.full_name || item.username || "مربی",
+            // بک‌اند avatar_url می‌دهد، کامپوننت avatarUrl می‌خواهد
+            avatarUrl: item.avatarUrl || item.avatar_url || null,
+            city: item.city || "نامشخص",
+            rating: Number(item.rating) || 0,
+          }));
+          setTopTrainers(normalized);
+        } else {
+          // اگر لیست خالی بود، آرایه خالی ست کن (تا فال‌بک نمایش داده شود)
+          setTopTrainers([]);
+        }
       } catch (e) {
         console.log("getTopTrainers error:", e?.message || e);
-        if (!mounted) return;
-        setTopTrainers([]);
+        if (mounted) setTopTrainers([]);
       } finally {
         if (mounted) setTopLoading(false);
       }
@@ -147,18 +158,15 @@ export default function HomeTab({
     };
   }, []);
 
-  // برای اینکه UI هیچ‌وقت خالی نشه و استایل خراب نشه:
+  // اگر دیتا هنوز لود نشده یا خالی است، از دیتای پیش‌فرض استفاده کن تا UI زشت نشود
   const trainersToShow = useMemo(() => {
-    const filled = [
-      ...(Array.isArray(topTrainers) ? topTrainers : []),
-      ...TOP_TRAINERS,
-    ];
-    // فقط ۳ تا
-    return filled.slice(0, 3);
-  }, [topTrainers]);
+    if (topLoading) return TOP_TRAINERS_FALLBACK;
+    if (topTrainers && topTrainers.length > 0) return topTrainers;
+    return TOP_TRAINERS_FALLBACK;
+  }, [topLoading, topTrainers]);
 
   // ---------------------------
-  // Hero carousel (Swipe + Snap)
+  // Hero Carousel Logic (Swipe + Snap) - دست نخورده
   // ---------------------------
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [mainScrollEnabled, setMainScrollEnabled] = useState(true);
@@ -188,29 +196,22 @@ export default function HomeTab({
 
   const snapToIndex = async (nextIndex) => {
     if (isAnimatingRef.current) return;
-
     const target = clamp(nextIndex, 0, maxIndex);
     if (target === activeIndexRef.current) {
       dragX.setValue(0);
       return;
     }
-
     isAnimatingRef.current = true;
-
     const diff = target - activeIndexRef.current;
-
     if (Math.abs(diff) === 1) {
       const dir = diff > 0 ? -1 : 1;
       await animateDragTo(dir * HERO_CARD_WIDTH, 170);
-
       setActiveHeroIndex(target);
       activeIndexRef.current = target;
-
       dragX.setValue(0);
       isAnimatingRef.current = false;
       return;
     }
-
     setActiveHeroIndex(target);
     activeIndexRef.current = target;
     dragX.setValue(0);
@@ -221,89 +222,69 @@ export default function HomeTab({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
-
       onMoveShouldSetPanResponder: (_, g) =>
         Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
-
       onMoveShouldSetPanResponderCapture: (_, g) => {
         const isHorizontal =
           Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy);
         if (isHorizontal) lockMainScroll();
         return isHorizontal;
       },
-
       onPanResponderGrant: () => {
         lockMainScroll();
         dragX.stopAnimation();
         dragX.setValue(0);
       },
-
       onPanResponderMove: (_, g) => {
         if (isAnimatingRef.current) return;
-
         let dx = g.dx;
-
         if (activeIndexRef.current === 0 && dx > 0) dx *= 0.25;
         if (activeIndexRef.current === maxIndex && dx < 0) dx *= 0.25;
-
         dx = clamp(dx, -HERO_CARD_WIDTH, HERO_CARD_WIDTH);
         dragX.setValue(dx);
       },
-
       onPanResponderRelease: async (_, g) => {
         unlockMainScroll();
         if (isAnimatingRef.current) return;
-
         const dx = g.dx;
         const vx = g.vx;
-
         const threshold = HERO_CARD_WIDTH * 0.32;
         const fling = 0.55;
-
         const canGoNext = activeIndexRef.current < maxIndex;
         const canGoPrev = activeIndexRef.current > 0;
-
         const goNext = (dx < -threshold || vx < -fling) && canGoNext;
         const goPrev = (dx > threshold || vx > fling) && canGoPrev;
 
         if (goNext) {
           isAnimatingRef.current = true;
           await animateDragTo(-HERO_CARD_WIDTH, 170);
-
           const next = activeIndexRef.current + 1;
           setActiveHeroIndex(next);
           activeIndexRef.current = next;
-
           dragX.setValue(0);
           isAnimatingRef.current = false;
           return;
         }
-
         if (goPrev) {
           isAnimatingRef.current = true;
           await animateDragTo(HERO_CARD_WIDTH, 170);
-
           const prev = activeIndexRef.current - 1;
           setActiveHeroIndex(prev);
           activeIndexRef.current = prev;
-
           dragX.setValue(0);
           isAnimatingRef.current = false;
           return;
         }
-
         isAnimatingRef.current = true;
         await animateDragTo(0, 160);
         dragX.setValue(0);
         isAnimatingRef.current = false;
       },
-
       onPanResponderTerminate: async () => {
         unlockMainScroll();
         dragX.stopAnimation();
         dragX.setValue(0);
       },
-
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
     })
@@ -316,14 +297,12 @@ export default function HomeTab({
         <View style={{ width: HERO_CARD_WIDTH, height: HERO_CARD_HEIGHT }} />
       );
     }
-
     return (
       <View style={styles.heroCard}>
         <View style={styles.heroTextCol}>
           <Text style={styles.heroTitle}>{slide.title}</Text>
           <Text style={styles.heroSubtitle}>{slide.subtitle}</Text>
         </View>
-
         <View style={styles.heroIconCol}>
           {slide.image ? (
             <Image
@@ -362,7 +341,6 @@ export default function HomeTab({
             />
           </View>
         </Pressable>
-
         <Text style={styles.userName}>{displayName}</Text>
       </View>
 
@@ -390,19 +368,15 @@ export default function HomeTab({
           <Animated.View
             style={[
               styles.heroTrack,
-              {
-                transform: [{ translateX: dragX }],
-              },
+              { transform: [{ translateX: dragX }] },
             ]}
           >
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex - 1)}
             </View>
-
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex)}
             </View>
-
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex + 1)}
             </View>
@@ -423,7 +397,7 @@ export default function HomeTab({
         </View>
       </View>
 
-      {/* ---------- بهترین مربی‌ها ---------- */}
+      {/* ---------- بهترین مربی‌ها (Updated Section) ---------- */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeaderText}>بهترین مربی ها</Text>
         <View style={styles.sectionHeaderLine} />
@@ -432,14 +406,17 @@ export default function HomeTab({
       <View style={styles.trainersRow}>
         {trainersToShow.map((t, index) => (
           <TopTrainerCard
+            // اگر id نداشت از ایندکس استفاده کن تا ارور نده
             key={t?.id ? String(t.id) : `top-${index}`}
             t={t}
             onPress={(trainer) => {
-              // اگر handler دادی از بیرون، همونو می‌زنیم
-              if (typeof onPressTrainer === "function") return onPressTrainer(trainer);
-
-              console.log("clicked:", trainer?.id);
+              if (typeof onPressTrainer === "function") {
+                onPressTrainer(trainer);
+              } else {
+                console.log("Trainer clicked:", trainer?.id);
+              }
             }}
+            // محاسبه عرض کارت برای اینکه دقیقاً 3 تا جا بشه
             style={{ width: TRAINER_CARD_WIDTH }}
           />
         ))}

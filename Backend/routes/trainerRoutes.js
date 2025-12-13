@@ -14,6 +14,7 @@ import {
   deletePlan,
   getMyPlans,
   getTrainerPlansPublic,
+  getTopTrainers,
   
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -58,6 +59,9 @@ trainerRouter.get("/plansList", authMiddleware, getMyPlans);         // لیست
 // ✅ برای شاگردها و عموم (نیاز به لاگین هم می‌تونه نداشته باشه، طبق نیازت)
 // اینجا لاگین رو اجبار نکردم؛ اگر می‌خوای فقط کاربر لاگین‌شده ببینه، authMiddleware رو اضافه کن
 trainerRouter.get("/:trainerId/plan", getTrainerPlansPublic);
+
+
+trainerRouter.get("/top-trainers", getTopTrainers);
 
 
 export default trainerRouter;
