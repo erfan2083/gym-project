@@ -9,24 +9,33 @@ import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
 import ProfileTab from "../../components/home/ProfileTab";
 import HomeTab from "../../components/home/HomeTab";
+import { useProfileStore } from "../../store/profileStore";
 
 export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
+  const role = useProfileStore((s) => s.profile?.role);
 
   const renderContent = () => {
     if (activeTab === "home") {
+      // ✅ فقط کاربر عادی
+      if (role === "client") {
+        return (
+          <HomeTab
+            onPressProfile={() => setActiveTab("profile")}
+            onPressAllTrainers={() => {}}
+            onPressAllCategories={() => {}}
+          />
+        );
+      }
+
+      // ✅ مربی => همان هوم قبلی (placeholder فعلی تو)
       return (
-        <HomeTab
-          onPressProfile={() => setActiveTab("profile")}
-          onPressAllTrainers={() => {
-            // TODO: وقتی صفحهٔ لیست مربی‌ها را ساختی اینجا navigation بده
-          }}
-          onPressAllCategories={() => {
-            // TODO: وقتی صفحهٔ لیست رشته‌ها را ساختی اینجا navigation بده
-          }}
-        />
+        <View style={styles.centerContent}>
+          <Text style={styles.contentText}>صفحه هوم</Text>
+        </View>
       );
     }
+
     if (activeTab === "workout") {
       return (
         <View style={styles.centerContent}>
@@ -35,8 +44,16 @@ export default function HomeScreen() {
       );
     }
     if (activeTab === "profile") {
-      return <ProfileTab />;
+      if (role === "coach") return <ProfileTab />;
+
+      // فعلاً یک placeholder یا صفحه پروفایل کاربر (اگر داری)
+      return (
+        <View style={styles.centerContent}>
+          <Text style={styles.contentText}>پروفایل کاربر</Text>
+        </View>
+      );
     }
+
     return null;
   };
 
