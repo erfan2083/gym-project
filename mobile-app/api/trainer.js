@@ -206,3 +206,13 @@ export const getTrainerPlans = async (trainerId) => {
   const res = await api.get(`/api/trainer/${trainerId}/plan`);
   return res.data;
 };
+
+
+export const getTopTrainers = async (limit = 3) => {
+  const res = await api.get(`/api/user/top-trainers?limit=${limit}`);
+  // اگر بک‌اندت مستقیم آرایه برگردوند:
+  if (Array.isArray(res.data)) return res.data;
+
+  // اگر بک‌اندت آبجکت برگردوند:
+  return res.data?.trainers || [];
+};

@@ -28,24 +28,13 @@ import InstaIcon from "../ui/Instaicon";
 import {
   getMyTrainerProfile,
   getTrainerRatingSummary,
+
   // ✅ پلن‌ها
   createTrainerPlan,
   getMyTrainerPlans,
+  updateTrainerPlan, // ✅ اضافه شد
+  deleteTrainerPlan, // ✅ اضافه شد
 } from "../../../api/trainer.js";
-
-// ✅ اختیاری: اگر در api/trainer.js پیاده‌سازی شده باشد
-// (برای جلوگیری از کرش در زمان build در صورتی که export وجود نداشته باشد)
-let updateTrainerPlan;
-let deleteTrainerPlan;
-try {
-  // eslint-disable-next-line global-require
-  const trainerApi = require("../../../api/trainer.js");
-  updateTrainerPlan = trainerApi?.updateTrainerPlan;
-  deleteTrainerPlan = trainerApi?.deleteTrainerPlan;
-} catch (e) {
-  updateTrainerPlan = undefined;
-  deleteTrainerPlan = undefined;
-}
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -82,6 +71,14 @@ const formatPrice = (value) => {
   const withCommas = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return toPersianDigits(withCommas);
 };
+
+const normalizePriceForInput = (val) => {
+  if (val === undefined || val === null) return "";
+  const raw = toEnglishDigits(String(val)).replace(/,/g, "").trim();
+  const integerPart = raw.includes(".") ? raw.split(".")[0] : raw;
+  return integerPart.replace(/[^\d]/g, "");
+};
+
 
 const DURATION_UNITS = [
   { key: "day", label: "روز", days: 1 },
@@ -264,7 +261,6 @@ export default function ProfileTab() {
 
     const fetchMyPlans = async () => {
       try {
-        // API فقط برای مربی لاگین‌شده
         const plans = await getMyTrainerPlans();
         if (!isMounted) return;
 
@@ -276,7 +272,6 @@ export default function ProfileTab() {
         }
       } catch (e) {
         if (!isMounted) return;
-        // خطای پلن‌ها نباید کل صفحه رو خراب کنه، فقط لاگ می‌کنیم
         console.log("Error loading trainer plans:", e?.message || e);
       }
     };
@@ -346,7 +341,6 @@ export default function ProfileTab() {
     });
   };
 
-  // وقتی اشتراک جدید اضافه شد → برو روی آخرین اشتراک (مثل قبل)
   useEffect(() => {
     if (subscriptions.length === 0) {
       setActiveSubIndex(0);
@@ -391,7 +385,7 @@ export default function ProfileTab() {
     setError("");
     setEditingSubscription(sub);
     setSubName(sub.name || "");
-    setSubPrice(toEnglishDigits(sub.priceText || "").replace(/[^\d]/g, ""));
+    setSubPrice(normalizePriceForInput(sub.priceText));
     setSubDescription(sub.descriptionShort || "");
 
     const derived = deriveCountAndUnitFromDays(sub.durationDays);
@@ -436,7 +430,6 @@ export default function ProfileTab() {
       return;
     }
 
-    // قیمت: فقط عدد
     const priceNumeric = Number(
       toEnglishDigits(trimmedPrice || "").replace(/[^\d]/g, "")
     );
@@ -451,9 +444,6 @@ export default function ProfileTab() {
       setPlanSubmitting(true);
 
       if (editingSubscription?.id) {
-        if (typeof updateTrainerPlan !== "function") {
-          throw new Error("API ویرایش اشتراک در سرور پیاده‌سازی نشده است");
-        }
         // ✅ ویرایش پلن
         await updateTrainerPlan(editingSubscription.id, {
           title: trimmedName,
@@ -471,18 +461,17 @@ export default function ProfileTab() {
         });
       }
 
-      // ✅ بعد از ساخت، لیست پلن‌ها را دوباره از سرور بگیر
+      // ✅ بعد از ساخت/ویرایش، لیست پلن‌ها را دوباره بگیر
       const plans = await getMyTrainerPlans();
       if (Array.isArray(plans)) {
         const mappedPlans = plans.map(mapPlanRowToSubscriptionCard);
         setSubscriptions(mappedPlans);
       }
 
-      // ریست و بستن
       closeSubscriptionModal();
     } catch (e) {
       setError(
-        e?.response?.data?.message || e.message || "خطا در ساخت اشتراک (پلن)"
+        e?.response?.data?.message || e.message || "خطا در ثبت اشتراک (پلن)"
       );
     } finally {
       setPlanSubmitting(false);
@@ -495,10 +484,6 @@ export default function ProfileTab() {
     try {
       setError("");
       setPlanDeleting(true);
-
-      if (typeof deleteTrainerPlan !== "function") {
-        throw new Error("API حذف اشتراک در سرور پیاده‌سازی نشده است");
-      }
 
       await deleteTrainerPlan(editingSubscription.id);
 
@@ -520,11 +505,11 @@ export default function ProfileTab() {
       setPlanDeleting(false);
     }
   };
+
   const handleConfirmDeleteSubscription = () => {
     if (planDeleting) return;
     setDeleteConfirmVisible(false);
 
-    // اجازه بده مودال بسته بشه، بعد درخواست حذف اجرا بشه
     requestAnimationFrame(() => {
       handleDeleteSubscription();
     });
@@ -582,6 +567,7 @@ export default function ProfileTab() {
             </View>
           )}
         </View>
+
         <View
           style={{
             flexDirection: "column",
@@ -699,7 +685,6 @@ export default function ProfileTab() {
         <Text style={styles.sectionTitle}>اشتراک ها:</Text>
 
         <View style={styles.subSectionCardWrapper}>
-          {/* ✅ Viewport قفل شده: هیچ صفحه‌ای بیرون نمی‌زند */}
           <View style={styles.subPagerViewport}>
             <ScrollView
               ref={subScrollRef}
@@ -820,7 +805,7 @@ export default function ProfileTab() {
         </View>
       </View>
 
-      {/* مودال ساخت اشتراک */}
+      {/* مودال ساخت/ویرایش اشتراک */}
       <Modal
         visible={subscriptionModalVisible}
         transparent
@@ -851,7 +836,6 @@ export default function ProfileTab() {
             </View>
 
             <View style={styles.subModalBody}>
-              {/* نام اشتراک */}
               <View style={styles.subField}>
                 <TextInput
                   style={styles.subInput}
@@ -863,7 +847,6 @@ export default function ProfileTab() {
                 />
               </View>
 
-              {/* مدت زمان */}
               <View style={styles.subField}>
                 <View style={[styles.subInput, styles.subDurationField]}>
                   <Text style={styles.subDurationLabel}>مدت زمان:</Text>
@@ -905,7 +888,6 @@ export default function ProfileTab() {
                 </View>
               </View>
 
-              {/* قیمت */}
               <View style={styles.subField}>
                 <TextInput
                   style={styles.subInput}
@@ -918,7 +900,6 @@ export default function ProfileTab() {
                 />
               </View>
 
-              {/* توضیحات بیشتر */}
               <View style={styles.subField}>
                 <TextInput
                   style={[styles.subInput, styles.subInputMultiline]}
@@ -933,7 +914,6 @@ export default function ProfileTab() {
                 />
               </View>
 
-              {/* ✅ پیام خطا (بدون تغییر UI کلی) */}
               {!!error && (
                 <Text
                   style={{
@@ -1297,7 +1277,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // ✅ این ویو باعث میشه هیچ اسلایدی بیرون نزنه
   subPagerViewport: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
@@ -1521,7 +1500,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
 
-  // باکس واحد زمان (همان استایل خودت)
   subDurationUnitBox: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -1584,7 +1562,6 @@ const styles = StyleSheet.create({
     marginBottom: ms(10),
   },
 
-  // ---------- تایید حذف ----------
   deleteConfirmContent: {
     position: "absolute",
     top: 0,

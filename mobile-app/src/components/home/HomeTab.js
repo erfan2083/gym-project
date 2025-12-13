@@ -20,11 +20,14 @@ import TopTrainerCard from "../ui/TopTrainerCard";
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import Feather from "@expo/vector-icons/Feather";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import RatingStars from "../ui/RatingStars";
 import HomeDumbbell from "../ui/HomeDumbbell";
 import Yogaicon from "../ui/Yogaicon";
+
+// ✅ اینو باید از فایل API خودت import کنی
+// مسیر رو اگر APIت جای دیگه است عوض کن
+import { getTopTrainers } from "../../api/trainer";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // این مقدار باید با paddingHorizontal در HomeScreen هماهنگ باشد
@@ -58,26 +61,26 @@ const HERO_SLIDES = [
   },
 ];
 
-// داده نمونه برای بهترین مربی‌ها (بعداً می‌تونی از API بیاری)
+// داده نمونه برای بهترین مربی‌ها (Fallback فقط برای زمانی که API لود نشده یا خطا داده)
 const TOP_TRAINERS = [
   { id: "t1", name: "نام مربی", rating: 4.5, city: "شهر" },
   { id: "t2", name: "نام مربی", rating: 4.5, city: "شهر" },
   { id: "t3", name: "نام مربی", rating: 4.5, city: "شهر" },
 ];
 
-// دسته‌بندی‌ها (چند آیتم خالی برای مشابه بودن با Figma)
+// دسته‌بندی‌ها
 const CATEGORIES = [
   { id: "c0", title: "", icon: null },
   { id: "c00", title: "", icon: null },
   {
     id: "c1",
     title: "بدنسازی",
-    icon: (size) => <HomeDumbbell size={38} />,
+    icon: () => <HomeDumbbell size={38} />,
   },
   {
     id: "c2",
     title: "یوگا",
-    icon: (size) => <Yogaicon size={45} />,
+    icon: () => <Yogaicon size={45} />,
   },
   {
     id: "c3",
@@ -96,6 +99,7 @@ export default function HomeTab({
   onPressProfile,
   onPressAllTrainers,
   onPressAllCategories,
+  onPressTrainer, // ✅ اختیاری: اگر خواستی کلیک روی کارت‌ها ناوبری کنه
 }) {
   const profile = useProfileStore((state) => state.profile);
 
@@ -110,7 +114,51 @@ export default function HomeTab({
   const [query, setQuery] = useState("");
 
   // ---------------------------
-  // Hero carousel (Swipe + Snap) – مشابه منطق ProfileTab
+  // ✅ Top Trainers from API
+  // ---------------------------
+  const [topTrainers, setTopTrainers] = useState([]);
+  const [topLoading, setTopLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        setTopLoading(true);
+
+        const list = await getTopTrainers(3);
+
+        // انتظار داریم list آرایه‌ای از {id,name,rating,city,...} باشه
+        const normalized = Array.isArray(list) ? list : [];
+        if (!mounted) return;
+
+        setTopTrainers(normalized);
+      } catch (e) {
+        console.log("getTopTrainers error:", e?.message || e);
+        if (!mounted) return;
+        setTopTrainers([]);
+      } finally {
+        if (mounted) setTopLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // برای اینکه UI هیچ‌وقت خالی نشه و استایل خراب نشه:
+  const trainersToShow = useMemo(() => {
+    const filled = [
+      ...(Array.isArray(topTrainers) ? topTrainers : []),
+      ...TOP_TRAINERS,
+    ];
+    // فقط ۳ تا
+    return filled.slice(0, 3);
+  }, [topTrainers]);
+
+  // ---------------------------
+  // Hero carousel (Swipe + Snap)
   // ---------------------------
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [mainScrollEnabled, setMainScrollEnabled] = useState(true);
@@ -151,9 +199,8 @@ export default function HomeTab({
 
     const diff = target - activeIndexRef.current;
 
-    // اگر یک قدم است، با انیمیشن کامل
     if (Math.abs(diff) === 1) {
-      const dir = diff > 0 ? -1 : 1; // next => - , prev => +
+      const dir = diff > 0 ? -1 : 1;
       await animateDragTo(dir * HERO_CARD_WIDTH, 170);
 
       setActiveHeroIndex(target);
@@ -164,7 +211,6 @@ export default function HomeTab({
       return;
     }
 
-    // اگر چند قدم است (مثلاً کلیک روی دات) مستقیم برو
     setActiveHeroIndex(target);
     activeIndexRef.current = target;
     dragX.setValue(0);
@@ -197,7 +243,6 @@ export default function HomeTab({
 
         let dx = g.dx;
 
-        // مقاومت نرم روی لبه‌ها
         if (activeIndexRef.current === 0 && dx > 0) dx *= 0.25;
         if (activeIndexRef.current === maxIndex && dx < 0) dx *= 0.25;
 
@@ -247,7 +292,6 @@ export default function HomeTab({
           return;
         }
 
-        // Snap back
         isAnimatingRef.current = true;
         await animateDragTo(0, 160);
         dragX.setValue(0);
@@ -275,13 +319,11 @@ export default function HomeTab({
 
     return (
       <View style={styles.heroCard}>
-        {/* سمت راست: متن */}
         <View style={styles.heroTextCol}>
           <Text style={styles.heroTitle}>{slide.title}</Text>
           <Text style={styles.heroSubtitle}>{slide.subtitle}</Text>
         </View>
 
-        {/* سمت چپ: آیکون (نزدیک به فیگما) */}
         <View style={styles.heroIconCol}>
           {slide.image ? (
             <Image
@@ -309,7 +351,7 @@ export default function HomeTab({
       showsVerticalScrollIndicator={false}
       scrollEnabled={mainScrollEnabled}
     >
-      {/* ---------- هدر بالا (نام کاربر + آیکن) ---------- */}
+      {/* ---------- هدر بالا ---------- */}
       <View style={styles.topHeaderRow}>
         <Pressable onPress={onPressProfile} hitSlop={8}>
           <View style={styles.userIconCircle}>
@@ -353,24 +395,20 @@ export default function HomeTab({
               },
             ]}
           >
-            {/* prev */}
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex - 1)}
             </View>
 
-            {/* current */}
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex)}
             </View>
 
-            {/* next */}
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex + 1)}
             </View>
           </Animated.View>
         </View>
 
-        {/* dots */}
         <View style={styles.heroDotsRow}>
           {HERO_SLIDES.map((_, idx) => (
             <Pressable key={idx} onPress={() => snapToIndex(idx)} hitSlop={10}>
@@ -392,11 +430,16 @@ export default function HomeTab({
       </View>
 
       <View style={styles.trainersRow}>
-        {TOP_TRAINERS.slice(0, 3).map((t) => (
+        {trainersToShow.map((t, index) => (
           <TopTrainerCard
-            key={t.id}
+            key={t?.id ? String(t.id) : `top-${index}`}
             t={t}
-            onPress={(trainer) => console.log("clicked:", trainer.id)}
+            onPress={(trainer) => {
+              // اگر handler دادی از بیرون، همونو می‌زنیم
+              if (typeof onPressTrainer === "function") return onPressTrainer(trainer);
+
+              console.log("clicked:", trainer?.id);
+            }}
             style={{ width: TRAINER_CARD_WIDTH }}
           />
         ))}
@@ -450,7 +493,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   contentContainer: { paddingBottom: ms(24) },
 
-  // Header top
   topHeaderRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -473,7 +515,6 @@ const styles = StyleSheet.create({
     marginRight: ms(10),
   },
 
-  // Search
   searchBar: {
     height: ms(50),
     borderRadius: ms(22),
@@ -492,7 +533,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  // Hero
   heroSection: { marginVertical: ms(16), alignItems: "center" },
   heroViewport: {
     width: HERO_CARD_WIDTH,
@@ -544,14 +584,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  heroHeartWrap: {
-    position: "absolute",
-    top: ms(16),
-    right: ms(4),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroCheck: { position: "absolute", top: ms(10) },
 
   heroDotsRow: {
     flexDirection: "row",
@@ -574,7 +606,6 @@ const styles = StyleSheet.create({
     transform: [{ translateX: ms(15) }, { translateY: ms(-3) }],
   },
 
-  // Section header line + title
   sectionHeaderRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -592,8 +623,6 @@ const styles = StyleSheet.create({
     height: ms(1),
     backgroundColor: COLORS.primary,
   },
-
-  // Trainers
 
   trainersRow: {
     flexDirection: "row-reverse",
@@ -615,7 +644,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  // Categories
   categoriesRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
