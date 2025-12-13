@@ -16,6 +16,7 @@ import {
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
+import TopTrainerCard from "../ui/TopTrainerCard";
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -32,6 +33,8 @@ const CONTENT_WIDTH = SCREEN_WIDTH - SIDE_PADDING * 2;
 
 const HERO_CARD_WIDTH = CONTENT_WIDTH;
 const HERO_CARD_HEIGHT = ms(112);
+const TRAINER_GAP = ms(10);
+const TRAINER_CARD_WIDTH = (CONTENT_WIDTH - TRAINER_GAP * 2) / 3;
 
 // اسلایدهای بالای صفحه (۳ تا برای ۳ دات)
 const HERO_SLIDES = [
@@ -390,38 +393,12 @@ export default function HomeTab({
 
       <View style={styles.trainersRow}>
         {TOP_TRAINERS.slice(0, 3).map((t) => (
-          <Pressable key={t.id} style={styles.trainerCard} hitSlop={6}>
-            <View style={styles.trainerAvatarCircle}>
-              <FontAwesome5
-                name="user-alt"
-                size={ms(20)}
-                color={COLORS.primary}
-              />
-            </View>
-
-            {/* ✅ فقط این قسمت اضافه شد تا متن‌ها Start/Right شوند */}
-            <View style={styles.trainerInfoCol}>
-              <Text style={styles.trainerName} numberOfLines={1}>
-                {t.name}
-              </Text>
-
-              <View style={styles.trainerRatingRow}>
-                <RatingStars rating={t.rating} size={ms(12)} />
-              </View>
-
-              <View style={styles.trainerCityRow}>
-                <Ionicons
-                  name="location-sharp"
-                  size={ms(14)}
-                  color={COLORS.text3}
-                  style={{ marginLeft: ms(2) }}
-                />
-                <Text style={styles.trainerCity} numberOfLines={1}>
-                  {t.city}
-                </Text>
-              </View>
-            </View>
-          </Pressable>
+          <TopTrainerCard
+            key={t.id}
+            t={t}
+            onPress={(trainer) => console.log("clicked:", trainer.id)}
+            style={{ width: TRAINER_CARD_WIDTH }}
+          />
         ))}
       </View>
 
@@ -617,83 +594,11 @@ const styles = StyleSheet.create({
   },
 
   // Trainers
+
   trainersRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: ms(10),
-  },
-  trainerCard: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: ms(12),
-    paddingHorizontal: ms(10),
-    paddingVertical: ms(10),
-    alignItems: "center",
-    minHeight: ms(120),
-  },
-  trainerAvatarCircle: {
-    width: ms(52),
-    height: ms(52),
-    borderRadius: ms(26),
-    backgroundColor: COLORS.inputBg2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: ms(8),
-  },
-  trainerName: {
-    fontFamily: "Vazirmatn_700Bold",
-    fontSize: ms(10.5),
-    color: COLORS.text3,
-    textAlign: "center",
-    marginBottom: ms(6),
-  },
-  trainerRatingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: ms(6),
-  },
-  trainerCityRow: { flexDirection: "row-reverse", alignItems: "flex-end" },
-  trainerCity: {
-    fontFamily: "Vazirmatn_400Regular",
-    fontSize: ms(10.5),
-    color: COLORS.text3,
-    textAlign: "right",
-  },
-  trainerInfoCol: {
-    alignSelf: "stretch",
-    alignItems: "flex-end",
-    paddingHorizontal: ms(2),
-  },
-
-  trainerName: {
-    fontFamily: "Vazirmatn_700Bold",
-    fontSize: ms(10.5),
-    color: COLORS.text3,
-    textAlign: "right", // ✅
-    alignSelf: "stretch", // ✅
-    marginBottom: ms(6),
-  },
-
-  trainerRatingRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end", // ✅
-    alignSelf: "stretch", // ✅
-    marginBottom: ms(6),
-  },
-
-  trainerCityRow: {
-    flexDirection: "row-reverse",
-    justifyContent: "flex-start", // ✅
-    alignItems: "center",
-    alignSelf: "stretch", // ✅
-  },
-
-  trainerCity: {
-    fontFamily: "Vazirmatn_400Regular",
-    fontSize: ms(10.5),
-    color: COLORS.text3,
-    textAlign: "right",
   },
 
   seeAllBtn: {
