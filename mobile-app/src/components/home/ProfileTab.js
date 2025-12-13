@@ -33,10 +33,24 @@ import {
   getMyTrainerPlans,
 } from "../../../api/trainer.js";
 
+// ✅ اختیاری: اگر در api/trainer.js پیاده‌سازی شده باشد
+// (برای جلوگیری از کرش در زمان build در صورتی که export وجود نداشته باشد)
+let updateTrainerPlan;
+let deleteTrainerPlan;
+try {
+  // eslint-disable-next-line global-require
+  const trainerApi = require("../../../api/trainer.js");
+  updateTrainerPlan = trainerApi?.updateTrainerPlan;
+  deleteTrainerPlan = trainerApi?.deleteTrainerPlan;
+} catch (e) {
+  updateTrainerPlan = undefined;
+  deleteTrainerPlan = undefined;
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const PAGE_WIDTH = SCREEN_WIDTH;
-const CARD_WIDTH = SCREEN_WIDTH - ms(32);
+const CARD_WIDTH = SCREEN_WIDTH - ms(60);
 
 // ثابت‌ها برای کارت اشتراک و هلال
 const CARD_HEIGHT = ms(130);
@@ -107,6 +121,18 @@ const toEnglishDigits = (str) => {
 const getDurationMeta = (key) =>
   DURATION_UNITS.find((u) => u.key === key) || DURATION_UNITS[2];
 
+// ✅ تبدیل روزها به (تعداد + واحد) برای پرکردن فرم ویرایش
+const deriveCountAndUnitFromDays = (durationDays) => {
+  const days = Number(durationDays || 0);
+  if (!Number.isFinite(days) || days <= 0) return { count: "", unit: "month" };
+
+  // اولویت: سال > ماه > هفته > روز
+  if (days % 365 === 0) return { count: String(days / 365), unit: "year" };
+  if (days % 31 === 0) return { count: String(days / 31), unit: "month" };
+  if (days % 7 === 0) return { count: String(days / 7), unit: "week" };
+  return { count: String(days), unit: "day" };
+};
+
 // ✅ تبدیل پلن دیتابیس به مدل کارت‌های فعلی UI
 const mapPlanRowToSubscriptionCard = (planRow) => {
   // خروجی API: duration_in_days, created_at, ...
@@ -155,6 +181,7 @@ export default function ProfileTab() {
 
   // ✅ لودینگ ساخت پلن
   const [planSubmitting, setPlanSubmitting] = useState(false);
+  const [planDeleting, setPlanDeleting] = useState(false);
 
   const navigation = useNavigation();
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
@@ -167,6 +194,7 @@ export default function ProfileTab() {
   // فرم ساخت اشتراک
   const [subscriptionModalVisible, setSubscriptionModalVisible] =
     useState(false);
+  const [editingSubscription, setEditingSubscription] = useState(null); // null => create
   const [subName, setSubName] = useState("");
   const [subDurationCount, setSubDurationCount] = useState("");
   const [subDurationUnit, setSubDurationUnit] = useState("month");
@@ -177,6 +205,9 @@ export default function ProfileTab() {
   // مودال انتخاب واحد زمان
   const [durationUnitPickerVisible, setDurationUnitPickerVisible] =
     useState(false);
+
+  // ✅ مودال تایید حذف
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
 
   // -------------------- گرفتن پروفایل مربی --------------------
   useEffect(() => {
@@ -340,8 +371,46 @@ export default function ProfileTab() {
     scrollToSubIndex(target, true);
   };
 
-  // ✅ اینجا دمو رو حذف کردیم و مستقیم پلن رو در بک‌اند می‌سازیم
-  const handleAddSubscription = async () => {
+  const resetSubscriptionForm = () => {
+    setSubName("");
+    setSubDurationCount("");
+    setSubDurationUnit("month");
+    setSubPrice("");
+    setSubDescription("");
+  };
+
+  const openCreateSubscriptionModal = () => {
+    setError("");
+    setEditingSubscription(null);
+    resetSubscriptionForm();
+    setSubscriptionModalVisible(true);
+  };
+
+  const openEditSubscriptionModal = (sub) => {
+    if (!sub) return;
+    setError("");
+    setEditingSubscription(sub);
+    setSubName(sub.name || "");
+    setSubPrice(toEnglishDigits(sub.priceText || "").replace(/[^\d]/g, ""));
+    setSubDescription(sub.descriptionShort || "");
+
+    const derived = deriveCountAndUnitFromDays(sub.durationDays);
+    setSubDurationUnit(derived.unit);
+    setSubDurationCount(derived.count);
+
+    setSubscriptionModalVisible(true);
+  };
+
+  const closeSubscriptionModal = () => {
+    setSubscriptionModalVisible(false);
+    setEditingSubscription(null);
+    setDeleteConfirmVisible(false);
+    setError("");
+    resetSubscriptionForm();
+  };
+
+  // ✅ ساخت/ویرایش پلن در بک‌اند
+  const handleSubmitSubscription = async () => {
     const trimmedName = subName.trim();
     const trimmedPrice = subPrice.trim();
     const trimmedDesc = subDescription.trim();
@@ -381,13 +450,26 @@ export default function ProfileTab() {
       setError("");
       setPlanSubmitting(true);
 
-      // ✅ ایجاد پلن در سرور
-      await createTrainerPlan({
-        title: trimmedName,
-        description: trimmedDesc || null,
-        price: priceNumeric,
-        durationInDays: durationDays,
-      });
+      if (editingSubscription?.id) {
+        if (typeof updateTrainerPlan !== "function") {
+          throw new Error("API ویرایش اشتراک در سرور پیاده‌سازی نشده است");
+        }
+        // ✅ ویرایش پلن
+        await updateTrainerPlan(editingSubscription.id, {
+          title: trimmedName,
+          description: trimmedDesc || null,
+          price: priceNumeric,
+          durationInDays: durationDays,
+        });
+      } else {
+        // ✅ ایجاد پلن
+        await createTrainerPlan({
+          title: trimmedName,
+          description: trimmedDesc || null,
+          price: priceNumeric,
+          durationInDays: durationDays,
+        });
+      }
 
       // ✅ بعد از ساخت، لیست پلن‌ها را دوباره از سرور بگیر
       const plans = await getMyTrainerPlans();
@@ -396,23 +478,56 @@ export default function ProfileTab() {
         setSubscriptions(mappedPlans);
       }
 
-      // ریست فرم
-      setSubName("");
-      setSubDurationCount("");
-      setSubDurationUnit("month");
-      setSubPrice("");
-      setSubDescription("");
-
-      setSubscriptionModalVisible(false);
+      // ریست و بستن
+      closeSubscriptionModal();
     } catch (e) {
       setError(
-        e?.response?.data?.message ||
-          e.message ||
-          "خطا در ساخت اشتراک (پلن)"
+        e?.response?.data?.message || e.message || "خطا در ساخت اشتراک (پلن)"
       );
     } finally {
       setPlanSubmitting(false);
     }
+  };
+
+  const handleDeleteSubscription = async () => {
+    if (!editingSubscription?.id) return;
+
+    try {
+      setError("");
+      setPlanDeleting(true);
+
+      if (typeof deleteTrainerPlan !== "function") {
+        throw new Error("API حذف اشتراک در سرور پیاده‌سازی نشده است");
+      }
+
+      await deleteTrainerPlan(editingSubscription.id);
+
+      const plans = await getMyTrainerPlans();
+      if (Array.isArray(plans)) {
+        const mappedPlans = plans.map(mapPlanRowToSubscriptionCard);
+        setSubscriptions(mappedPlans);
+      } else {
+        setSubscriptions([]);
+      }
+
+      closeSubscriptionModal();
+    } catch (e) {
+      setError(
+        e?.response?.data?.message || e.message || "خطا در حذف اشتراک (پلن)"
+      );
+      setDeleteConfirmVisible(false);
+    } finally {
+      setPlanDeleting(false);
+    }
+  };
+  const handleConfirmDeleteSubscription = () => {
+    if (planDeleting) return;
+    setDeleteConfirmVisible(false);
+
+    // اجازه بده مودال بسته بشه، بعد درخواست حذف اجرا بشه
+    requestAnimationFrame(() => {
+      handleDeleteSubscription();
+    });
   };
 
   if (loading && !profile?.username) {
@@ -603,7 +718,11 @@ export default function ProfileTab() {
             >
               {subscriptions.map((sub) => (
                 <View key={sub.id} style={styles.subPagerPage}>
-                  <View style={styles.subscriptionCard}>
+                  <Pressable
+                    style={styles.subscriptionCard}
+                    onPress={() => openEditSubscriptionModal(sub)}
+                    hitSlop={8}
+                  >
                     <View style={styles.subscriptionCircle} />
 
                     <View style={styles.subscriptionPriceContainer}>
@@ -619,13 +738,11 @@ export default function ProfileTab() {
                         {sub.durationLabel}
                       </Text>
                       <View style={styles.subscriptionDivider} />
-                      <Pressable hitSlop={6}>
-                        <Text style={styles.subscriptionMore}>
-                          {sub.descriptionShort}
-                        </Text>
-                      </Pressable>
+                      <Text style={styles.subscriptionMore}>
+                        {sub.descriptionShort}
+                      </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 </View>
               ))}
 
@@ -633,7 +750,7 @@ export default function ProfileTab() {
               <View style={styles.subPagerPage}>
                 <Pressable
                   style={styles.createSubscriptionCard}
-                  onPress={() => setSubscriptionModalVisible(true)}
+                  onPress={openCreateSubscriptionModal}
                 >
                   <View style={styles.createPlusCircle}>
                     <AntDesign
@@ -708,16 +825,29 @@ export default function ProfileTab() {
         visible={subscriptionModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setSubscriptionModalVisible(false)}
+        onRequestClose={closeSubscriptionModal}
       >
         <Pressable
           style={styles.fullModalBackdrop}
-          onPress={() => setSubscriptionModalVisible(false)}
+          onPress={closeSubscriptionModal}
         />
         <View style={styles.subModalContent}>
           <View style={styles.subModalCard}>
             <View style={styles.subModalHeader}>
-              <Text style={styles.subModalHeaderText}>ساخت اشتراک:</Text>
+              {!!editingSubscription && (
+                <Pressable
+                  style={styles.subModalTrashButton}
+                  onPress={() => setDeleteConfirmVisible(true)}
+                  hitSlop={10}
+                  disabled={planSubmitting || planDeleting}
+                >
+                  <Feather name="trash-2" size={ms(22)} color={COLORS.white2} />
+                </Pressable>
+              )}
+
+              <Text style={styles.subModalHeaderText}>
+                {editingSubscription ? "ویرایش اشتراک:" : "ساخت اشتراک:"}
+              </Text>
             </View>
 
             <View style={styles.subModalBody}>
@@ -820,13 +950,65 @@ export default function ProfileTab() {
 
               <Pressable
                 style={styles.subSubmitButton}
-                onPress={handleAddSubscription}
-                disabled={planSubmitting}
+                onPress={handleSubmitSubscription}
+                disabled={planSubmitting || planDeleting}
               >
                 {planSubmitting ? (
                   <ActivityIndicator size="small" color={COLORS.white2} />
                 ) : (
-                  <Text style={styles.subSubmitButtonText}>افزودن</Text>
+                  <Text style={styles.subSubmitButtonText}>
+                    {editingSubscription ? "ذخیره" : "افزودن"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ مودال تایید حذف اشتراک */}
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmVisible(false)}
+      >
+        <Pressable
+          style={styles.fullModalBackdrop}
+          onPress={() => setDeleteConfirmVisible(false)}
+        />
+        <View style={styles.deleteConfirmContent}>
+          <View style={styles.deleteConfirmCard}>
+            <Text style={styles.deleteConfirmTitle}>حذف اشتراک</Text>
+            <Text style={styles.deleteConfirmText}>
+              آیا از حذف این اشتراک مطمئن هستید؟
+            </Text>
+
+            <View style={styles.deleteConfirmActions}>
+              <Pressable
+                style={[styles.deleteConfirmBtn, styles.deleteConfirmBtnCancel]}
+                onPress={() => setDeleteConfirmVisible(false)}
+                disabled={planDeleting}
+              >
+                <Text style={styles.deleteConfirmBtnText}>لغو</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.deleteConfirmBtn, styles.deleteConfirmBtnDanger]}
+                onPress={handleConfirmDeleteSubscription}
+                disabled={planDeleting}
+              >
+                {planDeleting ? (
+                  <ActivityIndicator size="small" color={COLORS.white2} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.deleteConfirmBtnText,
+                      styles.deleteConfirmBtnTextDanger,
+                    ]}
+                  >
+                    حذف
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -1263,6 +1445,17 @@ const styles = StyleSheet.create({
     fontSize: ms(20),
     color: COLORS.white2,
   },
+  subModalTrashButton: {
+    position: "absolute",
+    left: ms(14),
+    top: ms(18),
+    width: ms(34),
+    height: ms(34),
+    borderRadius: ms(12),
+    backgroundColor: "rgba(255,255,255,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   subModalBody: { paddingHorizontal: ms(20), paddingVertical: ms(16) },
   subField: { marginBottom: ms(10) },
   subInput: {
@@ -1389,5 +1582,64 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: "center",
     marginBottom: ms(10),
+  },
+
+  // ---------- تایید حذف ----------
+  deleteConfirmContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteConfirmCard: {
+    width: "86%",
+    borderRadius: ms(16),
+    backgroundColor: COLORS.inputBg2,
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(16),
+  },
+  deleteConfirmTitle: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.text,
+    textAlign: "right",
+    marginBottom: ms(8),
+  },
+  deleteConfirmText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text2,
+    textAlign: "right",
+    lineHeight: ms(18),
+    marginBottom: ms(14),
+  },
+  deleteConfirmActions: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    gap: ms(10),
+  },
+  deleteConfirmBtn: {
+    flex: 1,
+    borderRadius: ms(12),
+    paddingVertical: ms(12),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteConfirmBtnCancel: {
+    backgroundColor: COLORS.inputBg,
+  },
+  deleteConfirmBtnDanger: {
+    backgroundColor: COLORS.danger,
+  },
+  deleteConfirmBtnText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(12),
+    color: COLORS.text,
+  },
+  deleteConfirmBtnTextDanger: {
+    color: COLORS.white,
   },
 });
