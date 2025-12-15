@@ -18,6 +18,8 @@ import LogoWithText from "../../components/ui/LogoWithText";
 import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
+import { useProfileStore } from "../../store/profileStore";
+
 import { login } from "../../../api/auth"; // ← اتصال به API (فرانت) :contentReference[oaicite:2]{index=2}
 
 const FloatLabel = ({ visible, title }) =>
@@ -69,6 +71,12 @@ export default function LoginScreen({ navigation }) {
       // شماره را نرمال و فقط رقم می‌فرستیم
       const { user } = await login({ phone: phone, password: pass }); // ذخیرهٔ توکن در خود تابع انجام می‌شود :contentReference[oaicite:3]{index=3}
 
+      setProfile({
+        role: user?.role || null,
+        name: user?.full_name || user?.name || "",
+        username: user?.username || "",
+      });
+
       // هدایت بعد از ورود (می‌تونی بر اساس نقش تصمیم بگیری)
       if (user?.role === "coach") {
         navigation.replace("Home"); // یا داشبورد مربی
@@ -90,6 +98,8 @@ export default function LoginScreen({ navigation }) {
   const onForgot = () => {
     navigation.navigate("Phone", { purpose: "reset" });
   };
+
+  const setProfile = useProfileStore((s) => s.setProfile);
 
   const showSignup = !valid;
 
@@ -150,7 +160,7 @@ export default function LoginScreen({ navigation }) {
               <CustomInput
                 value={pass}
                 onChangeText={setPass}
-                placeholder={fPass ? "" : "رمز عبور:"}
+                placeholder={fPass ? "" : ":رمز عبور"}
                 secureTextEntry={!showPass}
                 onFocus={() => setFPass(true)}
                 onBlur={() => setFPass(false)}
@@ -196,8 +206,11 @@ export default function LoginScreen({ navigation }) {
                 textColor={valid && !loading ? COLORS.onPrimary : COLORS.text}
                 style={[
                   styles.loginBtn,
-                  { backgroundColor: valid && !loading ? COLORS.primary : COLORS.disabled },
-                  (!valid || loading) ? styles.loginBtnDisabled : null,
+                  {
+                    backgroundColor:
+                      valid && !loading ? COLORS.primary : COLORS.disabled,
+                  },
+                  !valid || loading ? styles.loginBtnDisabled : null,
                 ]}
               />
             </View>

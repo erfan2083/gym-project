@@ -8,6 +8,11 @@ import OtpScreen from "../screens/auth/OtpScreen";
 import SignupScreen from "../screens/auth/SignupScreen";
 import LoginScreen from "../screens/auth/LoginScreen";
 import ResetPasswordScreen from "../screens/auth/ResetPasswordScreen";
+import ProfileFormScreen from "../screens/profile/ProfileFormScreen";
+import HomeScreen from "../screens/home/HomeScreen";
+import SignatureScreen from "../screens/profile/SignatureScreen";
+import ProfileEditScreen from "../screens/profile/ProfileEditScreen";
+import ReviewsScreen from "../screens/profile/ReviewsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -23,6 +28,19 @@ export default function AppNavigator() {
         <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Otp" component={OtpScreen} />
         <Stack.Screen name="ResetPas" component={ResetPasswordScreen} />
+        <Stack.Screen name="ProfileForm" component={ProfileFormScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Signature" component={SignatureScreen} />
+        <Stack.Screen
+          name="ProfileEdit"
+          component={ProfileEditScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ReviewsScreen"
+          component={ReviewsScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

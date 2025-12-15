@@ -17,12 +17,14 @@ import { styles1 } from "../../theme/LogoStyle";
 import CustomInput from "../../components/ui/CustomInput";
 import PrimaryButton from "../../components/ui/PrimaryButton";
 import { signupComplete } from "../../../api/auth";
+import { useProfileStore } from "../../store/profileStore";
 
 const FloatLabel = ({ visible, title }) =>
   visible ? <Text style={styles.floatingLabel}>{title}</Text> : null;
 
 export default function SignupScreen({ route, navigation }) {
   const signup_token = route?.params?.signup_token || "";
+  const setProfile = useProfileStore((s) => s.setProfile);
 
   const [role, setRole] = useState(null);
   const [user, setUser] = useState("");
@@ -60,8 +62,13 @@ export default function SignupScreen({ route, navigation }) {
         password: pass,
         role,
       });
+      setProfile({
+        role: created?.role || role || null,
+        name: created?.full_name || user.trim(),
+        username: created?.username || "",
+      });
       if (created?.role === "coach") {
-        navigation.replace("TrainerProfileSetup");
+        navigation.replace("ProfileForm");
       } else {
         navigation.replace("Home");
       }
