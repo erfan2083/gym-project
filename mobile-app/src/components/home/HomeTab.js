@@ -15,7 +15,8 @@ import {
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
-import TopTrainerCard from "../ui/TopTrainerCard"; //
+import TopTrainerCard from "../ui/TopTrainerCard";
+import { useNavigation } from "@react-navigation/native"; // ✅ اضافه شد
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -24,7 +25,7 @@ import HomeDumbbell from "../ui/HomeDumbbell";
 import Yogaicon from "../ui/Yogaicon";
 
 // ایمپورت API
-import { getTopTrainers } from "../../../api/trainer"; //
+import { getTopTrainers } from "../../../api/trainer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -96,8 +97,9 @@ export default function HomeTab({
   onPressProfile,
   onPressAllTrainers,
   onPressAllCategories,
-  onPressTrainer,
+  onPressTrainer, // این پراپ اختیاری است، اگر پاس داده نشود از نویگیشن داخلی استفاده می‌شود
 }) {
+  const navigation = useNavigation(); // ✅ هوک نویگیشن
   const profile = useProfileStore((state) => state.profile);
 
   const displayName = useMemo(() => {
@@ -129,20 +131,15 @@ export default function HomeTab({
 
         // اگر API دیتا داد، آن را ست می‌کنیم
         if (Array.isArray(list) && list.length > 0) {
-          // اینجا یک نگاشت (Map) انجام می‌دهیم تا اگر بک‌اند full_name داد
-          // و کامپوننت name می‌خواست، مشکلی پیش نیاید.
           const normalized = list.map((item) => ({
             id: item.id,
-            // بک‌اند full_name می‌دهد، کامپوننت name می‌خواهد
             name: item.name || item.full_name || item.username || "مربی",
-            // بک‌اند avatar_url می‌دهد، کامپوننت avatarUrl می‌خواهد
             avatarUrl: item.avatarUrl || item.avatar_url || null,
             city: item.city || "نامشخص",
             rating: Number(item.rating) || 0,
           }));
           setTopTrainers(normalized);
         } else {
-          // اگر لیست خالی بود، آرایه خالی ست کن (تا فال‌بک نمایش داده شود)
           setTopTrainers([]);
         }
       } catch (e) {
@@ -158,7 +155,6 @@ export default function HomeTab({
     };
   }, []);
 
-  // اگر دیتا هنوز لود نشده یا خالی است، از دیتای پیش‌فرض استفاده کن تا UI زشت نشود
   const trainersToShow = useMemo(() => {
     if (topLoading) return TOP_TRAINERS_FALLBACK;
     if (topTrainers && topTrainers.length > 0) return topTrainers;
@@ -166,7 +162,7 @@ export default function HomeTab({
   }, [topLoading, topTrainers]);
 
   // ---------------------------
-  // Hero Carousel Logic (Swipe + Snap) - دست نخورده
+  // Hero Carousel Logic (Swipe + Snap)
   // ---------------------------
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [mainScrollEnabled, setMainScrollEnabled] = useState(true);
@@ -397,7 +393,7 @@ export default function HomeTab({
         </View>
       </View>
 
-      {/* ---------- بهترین مربی‌ها (Updated Section) ---------- */}
+      {/* ---------- بهترین مربی‌ها ---------- */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeaderText}>بهترین مربی ها</Text>
         <View style={styles.sectionHeaderLine} />
@@ -406,17 +402,22 @@ export default function HomeTab({
       <View style={styles.trainersRow}>
         {trainersToShow.map((t, index) => (
           <TopTrainerCard
-            // اگر id نداشت از ایندکس استفاده کن تا ارور نده
             key={t?.id ? String(t.id) : `top-${index}`}
             t={t}
             onPress={(trainer) => {
+              // ✅ لاجیک نویگیشن به پروفایل مربی
               if (typeof onPressTrainer === "function") {
+                // اگر از بیرون هندلر پاس داده شده بود (مثلا برای تست)
                 onPressTrainer(trainer);
               } else {
-                console.log("Trainer clicked:", trainer?.id);
+                // نویگیت به صفحه‌ای که در TrainerPublicProfile.js ساختی
+                // با پاس دادن ID و دیتای اولیه
+                navigation.navigate("TrainerPublicProfile", {
+                  trainerId: trainer.id,
+                  trainerData: trainer,
+                });
               }
             }}
-            // محاسبه عرض کارت برای اینکه دقیقاً 3 تا جا بشه
             style={{ width: TRAINER_CARD_WIDTH }}
           />
         ))}

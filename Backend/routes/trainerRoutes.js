@@ -15,6 +15,7 @@ import {
   getMyPlans,
   getTrainerPlansPublic,
   getTopTrainers,
+  getTrainerProfile
   
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -62,6 +63,8 @@ trainerRouter.get("/:trainerId/plan", getTrainerPlansPublic);
 
 
 trainerRouter.get("/top-trainers", getTopTrainers);
+
+trainerRouter.get("/profile/:trainerId", getTrainerProfile);
 
 
 export default trainerRouter;

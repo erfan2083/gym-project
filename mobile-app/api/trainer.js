@@ -236,3 +236,19 @@ export const getTopTrainers = async (limit = 3) => {
     return [];
   }
 };
+
+
+
+// به فایل api/trainer.js اضافه کنید
+
+/**
+ * دریافت پروفایل پابلیک یک مربی خاص با ID
+ * (شامل بیوگرافی، تخصص‌ها، عکس مدرک و ...)
+ */
+export const getTrainerProfileById = async (trainerId) => {
+  // فرض بر این است که بک‌اند شما روتی شبیه به این دارد:
+  // GET /api/trainer/profile/:id
+  // که دقیقاً همان خروجی getMyTrainerProfile را برمی‌گرداند
+  const res = await api.get(`/api/trainer/profile/${trainerId}`);
+  return res.data;
+};

@@ -654,3 +654,49 @@ export const getTopTrainers = async (req, res) => {
     });
   }
 };
+
+
+
+export const getTrainerProfile = async (req, res) => {
+  try {
+    const trainerId = req.params.trainerId;
+    if (!trainerId) {
+      return res.status(401).json({ message: "احراز هویت انجام نشده است" });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_public_profile($1)',
+      [trainerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "پروفایل مربی برای این کاربر یافت نشد" });
+    }
+
+    const row = result.rows[0];
+
+    return res.json({
+      userId: trainerId,
+      fullName: row.full_name,
+      avatarUrl: row.avatar_url,
+      username: row.username,
+      gender: row.gender,
+      birthDate: row.date_of_birth,
+      province: row.province,
+      city: row.city,
+      bio: row.bio,
+      certificateImageUrl: row.certificate_image_url,
+      contactPhone: row.contact_phone,
+      telegramUrl: row.telegram_url,
+      instagramUrl: row.instagram_url,
+      specialties: row.specialties || [],
+    });
+  } catch (err) {
+    console.error("getMyTrainerProfile error:", err);
+    return res
+      .status(500)
+      .json({ message: "خطای سرور در گرفتن پروفایل مربی" });
+  }
+};
