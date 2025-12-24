@@ -362,10 +362,7 @@ export default function HomeTab({
       <View style={styles.heroSection}>
         <View style={styles.heroViewport} {...panResponder.panHandlers}>
           <Animated.View
-            style={[
-              styles.heroTrack,
-              { transform: [{ translateX: dragX }] },
-            ]}
+            style={[styles.heroTrack, { transform: [{ translateX: dragX }] }]}
           >
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex - 1)}
