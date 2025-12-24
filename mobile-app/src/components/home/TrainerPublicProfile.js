@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  Alert,
 } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors.js";
@@ -18,13 +19,13 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import RatingStars from "../ui/RatingStars.js";
 import TelegramIcon from "../ui/Telegramicon.js";
 import TamasIcon from "../ui/Tamas.js";
+
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import InstaIcon from "../ui/Instaicon.js";
 
-// ایمپورت توابع API
 import {
   getTrainerPlans,
   getTrainerRatingSummary,
@@ -74,17 +75,85 @@ const mapPlanRowToSubscriptionCard = (planRow) => {
   };
 };
 
-export default function TrainerPublicProfile() {
+export default function TrainerPublicProfile({
+  trainerId: pTrainerId,
+  trainerData: pTrainerData,
+  onBack,
+  withinHomeShell,
+}) {
   const route = useRoute();
   const navigation = useNavigation();
 
-  const { trainerId, trainerData } = route.params || {};
+  const { trainerId: rTrainerId, trainerData: rTrainerData } =
+    route.params || {};
+  const trainerId = pTrainerId ?? rTrainerId;
+  const trainerData = pTrainerData ?? rTrainerData;
+
+  // embedded واقعی (داخل HomeScreen) یعنی onBack داریم
+  const isEmbedded = !!onBack;
+
+  // اگر صفحه اشتباهاً مستقل باز شد، همان لحظه به HomeScreen ریدایرکت کن تا bottom bar فعال باشد
+  useEffect(() => {
+    if (!isEmbedded && trainerId) {
+      try {
+        navigation.replace("Home", {
+          initialTab: "home",
+          openTrainerPublic: { trainerId, trainerData },
+          backTo: "main",
+        });
+      } catch (e) {
+        // اگر replace در این navigator نبود، حداقل کرش نکند
+        try {
+          navigation.navigate("HomeScreen", {
+            initialTab: "home",
+            openTrainerPublic: { trainerId, trainerData },
+            backTo: "main",
+          });
+        } catch (_) {}
+      }
+    }
+  }, [isEmbedded, trainerId]);
 
   const [profile, setProfile] = useState(null);
   const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
+
+  const [buyModalVisible, setBuyModalVisible] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
+  const openBuyModal = (plan) => {
+    if (!plan) return;
+    setSelectedPlan(plan);
+    setBuyModalVisible(true);
+  };
+
+  const closeBuyModal = () => {
+    setBuyModalVisible(false);
+    setSelectedPlan(null);
+  };
+
+  const handleBuyPress = () => {
+    if (!selectedPlan) return;
+
+    Alert.alert(
+      "تایید خرید",
+      "آیا از خرید این اشتراک مطمئن هستید؟",
+      [
+        { text: "لغو", style: "cancel" },
+        {
+          text: "تایید",
+          style: "default",
+          onPress: () => {
+            Alert.alert("موفق", "خرید با موفقیت انجام شد");
+            closeBuyModal();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   const [activeSubIndex, setActiveSubIndex] = useState(0);
   const subScrollRef = useRef(null);
@@ -166,7 +235,6 @@ export default function TrainerPublicProfile() {
   const rating = profile?.rating || 0;
   const ratingCount = profile?.ratingCount || 0;
 
-  // پردازش تخصص‌ها
   let specialties = [];
   if (Array.isArray(specialtiesRaw)) {
     specialties = specialtiesRaw.filter(Boolean);
@@ -194,7 +262,6 @@ export default function TrainerPublicProfile() {
   };
   const handlePhone = () => hasPhone && handleLink(`tel:${phone}`);
 
-  // اسلایدر پلن‌ها (شبیه ProfileTab)
   const clampSubIndex = (i) =>
     Math.max(0, Math.min(i, Math.max(0, subscriptions.length - 1)));
 
@@ -241,14 +308,16 @@ export default function TrainerPublicProfile() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[
+        styles.contentContainer,
+        isEmbedded && styles.contentContainerEmbedded,
+      ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* هدر شبیه ProfileTab */}
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => (onBack ? onBack() : navigation.goBack())}
           hitSlop={8}
         >
           <Ionicons name="arrow-back" size={ms(18)} color={COLORS.white} />
@@ -294,7 +363,6 @@ export default function TrainerPublicProfile() {
         </View>
       </View>
 
-      {/* دکمه نظرات (استایل شبیه ProfileTab) */}
       <View style={styles.ratingAndButtonRow}>
         <Pressable
           onPress={() =>
@@ -320,7 +388,6 @@ export default function TrainerPublicProfile() {
         </Pressable>
       </View>
 
-      {/* حیطه تخصصی */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>حیطه تخصصی:</Text>
         <View style={styles.card}>
@@ -337,7 +404,6 @@ export default function TrainerPublicProfile() {
         </View>
       </View>
 
-      {/* مدرک مربیگری (فقط اگر هست؛ بدون اضافه کردن بخش جدید) */}
       {certificateImageUrl ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>مدرک مربیگری:</Text>
@@ -367,7 +433,6 @@ export default function TrainerPublicProfile() {
         </View>
       ) : null}
 
-      {/* توضیحات */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>توضیحات و سوابق:</Text>
         <View style={[styles.card, styles.descCard]}>
@@ -379,7 +444,6 @@ export default function TrainerPublicProfile() {
         </View>
       </View>
 
-      {/* پلن‌ها (اسلایدر شبیه ProfileTab، بدون اضافه کردن صفحه ساخت) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>پلن‌ها و اشتراک‌ها:</Text>
 
@@ -403,7 +467,11 @@ export default function TrainerPublicProfile() {
               >
                 {subscriptions.map((sub) => (
                   <View key={sub.id} style={styles.subPagerPage}>
-                    <View style={styles.subscriptionCard}>
+                    <Pressable
+                      style={styles.subscriptionCard}
+                      onPress={() => openBuyModal(sub)}
+                      hitSlop={8}
+                    >
                       <View style={styles.subscriptionCircle} />
 
                       <View style={styles.subscriptionPriceContainer}>
@@ -423,7 +491,7 @@ export default function TrainerPublicProfile() {
                           {sub.descriptionShort}
                         </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   </View>
                 ))}
               </ScrollView>
@@ -455,7 +523,6 @@ export default function TrainerPublicProfile() {
         )}
       </View>
 
-      {/* راه های ارتباطی */}
       <View style={[styles.section, { marginTop: ms(20) }]}>
         <Text style={styles.sectionTitle}>راه های ارتباطی:</Text>
         <View style={styles.contactsRow}>
@@ -491,7 +558,6 @@ export default function TrainerPublicProfile() {
         </View>
       </View>
 
-      {/* مودال مدرک (شبیه ProfileTab) */}
       <Modal
         visible={certificateModalVisible}
         transparent
@@ -519,6 +585,56 @@ export default function TrainerPublicProfile() {
           )}
         </View>
       </Modal>
+
+      <Modal
+        visible={buyModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeBuyModal}
+      >
+        <Pressable style={styles.fullModalBackdrop} onPress={closeBuyModal} />
+
+        <View style={styles.buyModalContent}>
+          <View style={styles.buyModalCard}>
+            <View style={styles.buyModalHeader}>
+              <Text style={styles.buyModalHeaderText}>
+                {selectedPlan?.name || "اشتراک"}
+              </Text>
+            </View>
+
+            <View style={styles.buyModalBody}>
+              <View style={styles.buyRow}>
+                <Text style={styles.buyLabel}>مدت زمان :</Text>
+                <Text style={styles.buyValue}>
+                  {selectedPlan?.durationLabel || "—"}
+                </Text>
+              </View>
+
+              <View style={styles.buyRow}>
+                <Text style={styles.buyLabel}>قیمت :</Text>
+                <Text style={styles.buyValue}>
+                  {formatPrice(selectedPlan?.priceText)} تومان
+                </Text>
+              </View>
+
+              <View style={styles.buyRow}>
+                <Text style={styles.buyLabel}>توضیحات :</Text>
+                <Text style={styles.buyValue} numberOfLines={3}>
+                  {selectedPlan?.descriptionShort || "توضیحات بیشتر"}
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.buyBtn}
+                onPress={handleBuyPress}
+                hitSlop={8}
+              >
+                <Text style={styles.buyBtnText}>خرید</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -526,9 +642,12 @@ export default function TrainerPublicProfile() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   contentContainer: {
-    paddingBottom: ms(32),
+    paddingBottom: ms(50),
     paddingHorizontal: ms(30),
     paddingTop: ms(12),
+  },
+  contentContainerEmbedded: {
+    paddingHorizontal: 0,
   },
   center: {
     flex: 1,
@@ -537,12 +656,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
 
-  // ---------- header (مثل ProfileTab) ----------
   header: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
     marginBottom: ms(30),
-    marginTop: ms(30),
+    marginTop: ms(50),
   },
   backButton: {
     position: "absolute",
@@ -612,7 +730,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  // ---------- reviews button row ----------
   ratingAndButtonRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -634,7 +751,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  // ---------- sections/cards (مثل ProfileTab) ----------
   section: { marginBottom: ms(12) },
   sectionTitle: {
     fontFamily: "Vazirmatn_700Bold",
@@ -677,7 +793,6 @@ const styles = StyleSheet.create({
     marginLeft: ms(8),
   },
 
-  // ---------- certificate (مثل ProfileTab) ----------
   certificateCard: {
     height: ms(70),
     justifyContent: "center",
@@ -709,7 +824,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
 
-  // ---------- plans slider (مثل ProfileTab) ----------
   subSectionCardWrapper: {
     backgroundColor: "transparent",
     alignItems: "center",
@@ -721,10 +835,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     alignSelf: "center",
   },
-  subPagerPage: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-  },
+  subPagerPage: { width: CARD_WIDTH, height: CARD_HEIGHT },
   subscriptionCard: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
@@ -810,7 +921,6 @@ const styles = StyleSheet.create({
   },
   subDotActive: { backgroundColor: COLORS.lighgreen },
 
-  // ---------- contacts row (مثل ProfileTab) ----------
   contactsRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-around",
@@ -827,7 +937,6 @@ const styles = StyleSheet.create({
   },
   contactBtnDisabled: { opacity: 0.4 },
 
-  // ---------- full screen modal (مثل ProfileTab) ----------
   fullModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
   fullModalContent: {
     position: "absolute",
@@ -845,5 +954,78 @@ const styles = StyleSheet.create({
     left: ms(24),
     zIndex: 10,
     padding: ms(8),
+  },
+
+  buyModalContent: {
+    position: "absolute",
+    top: ms(200),
+    right: 0,
+    left: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  buyModalCard: {
+    width: "86%",
+    height: ms(350),
+    borderRadius: ms(14),
+    backgroundColor: COLORS.inputBg2,
+    overflow: "hidden",
+  },
+  buyModalHeader: {
+    height: ms(80),
+    backgroundColor: COLORS.primary,
+    borderTopLeftRadius: ms(14),
+    borderBottomRightRadius: ms(120),
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: ms(18),
+  },
+  buyModalHeaderText: {
+    marginTop: ms(14),
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(26),
+    color: COLORS.white2,
+    textAlign: "center",
+  },
+  buyModalBody: {
+    paddingHorizontal: ms(18),
+    paddingVertical: ms(16),
+    gap: ms(26),
+  },
+  buyRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: ms(12),
+  },
+  buyLabel: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(16),
+    color: COLORS.text,
+    textAlign: "right",
+  },
+  buyValue: {
+    flex: 1,
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(16),
+    color: COLORS.text,
+    textAlign: "right",
+    lineHeight: ms(18),
+  },
+  buyBtn: {
+    marginTop: ms(18),
+    marginBottom: ms(4),
+    backgroundColor: COLORS.primary,
+    borderRadius: ms(24),
+    paddingVertical: ms(12),
+    transform: [{ translateX: ms(14) }],
+    width: "90%",
+    alignItems: "center",
+  },
+  buyBtnText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(18),
+    color: COLORS.formTitle,
   },
 });
