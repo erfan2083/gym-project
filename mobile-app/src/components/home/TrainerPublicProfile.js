@@ -13,26 +13,28 @@ import {
   Dimensions,
 } from "react-native";
 import { ms } from "react-native-size-matters";
-import { COLORS } from "../../theme/colors";
+import { COLORS } from "../../theme/colors.js";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import RatingStars from "../ui/RatingStars";
-import TelegramIcon from "../ui/Telegramicon";
-import TamasIcon from "../ui/Tamas";
+import RatingStars from "../ui/RatingStars.js";
+import TelegramIcon from "../ui/Telegramicon.js";
+import TamasIcon from "../ui/Tamas.js";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import InstaIcon from "../ui/Instaicon";
+import InstaIcon from "../ui/Instaicon.js";
 
 // ایمپورت توابع API
 import {
   getTrainerPlans,
   getTrainerRatingSummary,
-  getTrainerProfileById, // ✅ تابعی که بالا اضافه کردیم
+  getTrainerProfileById,
 } from "../../../api/trainer.js";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - ms(60);
+
+// ثابت‌ها برای کارت اشتراک و هلال
 const CARD_HEIGHT = ms(130);
 const CIRCLE_SIZE = CARD_HEIGHT * 2;
 const INFO_MARGIN_LEFT = CARD_HEIGHT * 0.55;
@@ -76,7 +78,6 @@ export default function TrainerPublicProfile() {
   const route = useRoute();
   const navigation = useNavigation();
 
-  // گرفتن ID مربی از پارامترهای نویگیشن
   const { trainerId, trainerData } = route.params || {};
 
   const [profile, setProfile] = useState(null);
@@ -84,6 +85,7 @@ export default function TrainerPublicProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [certificateModalVisible, setCertificateModalVisible] = useState(false);
+
   const [activeSubIndex, setActiveSubIndex] = useState(0);
   const subScrollRef = useRef(null);
 
@@ -95,16 +97,17 @@ export default function TrainerPublicProfile() {
         setLoading(true);
         if (!trainerId) throw new Error("شناسه مربی یافت نشد.");
 
-        // 1. دریافت همزمان اطلاعات پروفایل، امتیاز و پلن‌ها
         const [profileData, ratingData, plansData] = await Promise.all([
-          getTrainerProfileById(trainerId).catch(() => null), // اگر این فیل شد، نل برگردون
-          getTrainerRatingSummary(trainerId).catch(() => ({ avgRating: 0, reviewCount: 0 })),
+          getTrainerProfileById(trainerId).catch(() => null),
+          getTrainerRatingSummary(trainerId).catch(() => ({
+            avgRating: 0,
+            reviewCount: 0,
+          })),
           getTrainerPlans(trainerId).catch(() => []),
         ]);
 
         if (!isMounted) return;
 
-        // اگر پروفایل کامل از سرور نیامد، از دیتای پاس داده شده (trainerData) استفاده کن
         const baseData = profileData || trainerData || {};
 
         const mappedProfile = {
@@ -112,29 +115,29 @@ export default function TrainerPublicProfile() {
           name: baseData.fullName || baseData.name || "نام مربی",
           city: baseData.city || "",
           avatarUri: baseData.avatarUrl || baseData.avatarUri || null,
-          specialties: Array.isArray(baseData.specialties) ? baseData.specialties : [],
+          specialties: Array.isArray(baseData.specialties)
+            ? baseData.specialties
+            : [],
           description: baseData.bio || baseData.description || "",
           phone: baseData.contactPhone || "",
           instagram: baseData.instagramUrl || "",
           telegram: baseData.telegramUrl || "",
           certificateImageUrl: baseData.certificateImageUrl || null,
           userId: trainerId,
-          // اولویت با دیتای دقیق API است، اگر نبود دیتای صفحه قبل
-          rating: typeof ratingData?.avgRating === "number" 
-            ? ratingData.avgRating 
-            : (Number(baseData.rating) || 0),
+          rating:
+            typeof ratingData?.avgRating === "number"
+              ? ratingData.avgRating
+              : Number(baseData.rating) || 0,
           ratingCount: ratingData?.reviewCount ?? 0,
         };
 
         setProfile(mappedProfile);
 
-        // مپ کردن پلن‌ها
         if (Array.isArray(plansData)) {
           setSubscriptions(plansData.map(mapPlanRowToSubscriptionCard));
         } else {
           setSubscriptions([]);
         }
-
       } catch (err) {
         console.error(err);
         if (isMounted) setError("خطا در دریافت اطلاعات مربی");
@@ -150,7 +153,6 @@ export default function TrainerPublicProfile() {
     };
   }, [trainerId, trainerData]);
 
-  // استخراج متغیرها برای نمایش در UI
   const name = profile?.name || "";
   const username = profile?.username || "";
   const city = profile?.city || "";
@@ -179,7 +181,6 @@ export default function TrainerPublicProfile() {
   const hasInstagram = !!instagram;
   const hasTelegram = !!telegram;
 
-  // هندلر دکمه‌های تماس
   const handleLink = (url) => Linking.openURL(url).catch(() => {});
   const handleInstagram = () => {
     if (!hasInstagram) return;
@@ -193,18 +194,28 @@ export default function TrainerPublicProfile() {
   };
   const handlePhone = () => hasPhone && handleLink(`tel:${phone}`);
 
-  // لاجیک اسلایدر پلن‌ها
-  const handleDotPress = (idx) => {
+  // اسلایدر پلن‌ها (شبیه ProfileTab)
+  const clampSubIndex = (i) =>
+    Math.max(0, Math.min(i, Math.max(0, subscriptions.length - 1)));
+
+  const scrollToSubIndex = (i, animated = true) => {
     if (!subscriptions.length) return;
-    const target = Math.max(0, Math.min(idx, subscriptions.length - 1));
-    setActiveSubIndex(target);
-    subScrollRef.current?.scrollTo({ x: target * CARD_WIDTH, animated: true });
+    const idx = clampSubIndex(i);
+    requestAnimationFrame(() => {
+      subScrollRef.current?.scrollTo({ x: idx * CARD_WIDTH, y: 0, animated });
+    });
   };
 
-  const handleMomentumEnd = (e) => {
-    const x = e.nativeEvent.contentOffset.x;
-    const idx = Math.round(x / CARD_WIDTH);
-    setActiveSubIndex(idx);
+  const handleSubMomentumEnd = (event) => {
+    const x = event.nativeEvent.contentOffset.x || 0;
+    const idx = clampSubIndex(Math.round(x / CARD_WIDTH));
+    if (idx !== activeSubIndex) setActiveSubIndex(idx);
+  };
+
+  const handleDotPress = (idx) => {
+    const target = clampSubIndex(idx);
+    setActiveSubIndex(target);
+    scrollToSubIndex(target, true);
   };
 
   if (loading) {
@@ -215,24 +226,38 @@ export default function TrainerPublicProfile() {
     );
   }
 
+  if (error && !profile?.name) {
+    return (
+      <View style={styles.center}>
+        <Text
+          style={{ color: COLORS.danger, fontFamily: "Vazirmatn_400Regular" }}
+        >
+          {error}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* هدر: دکمه بک + آواتار + مشخصات */}
+      {/* هدر شبیه ProfileTab */}
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={ms(22)} color={COLORS.white} />
+          <Ionicons name="arrow-back" size={ms(18)} color={COLORS.white} />
         </Pressable>
 
-        <View style={styles.starsRow}>
-          <Text style={styles.ratingNumber}>{rating.toFixed(1)}</Text>
+        <View style={styles.starsUnderBack}>
+          <Text style={styles.ratingNumber}>
+            {rating ? rating.toFixed(1) : "0.0"}
+          </Text>
           <RatingStars rating={rating} size={ms(16)} />
         </View>
 
@@ -241,23 +266,36 @@ export default function TrainerPublicProfile() {
             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <FontAwesome5 name="user-alt" size={ms(42)} color={COLORS.primary} />
+              <FontAwesome5
+                name="user-alt"
+                size={ms(42)}
+                color={COLORS.primary}
+              />
             </View>
           )}
         </View>
 
-        <View style={styles.headerInfo}>
-          <Text style={styles.name}>{name}</Text>
-          {!!username && <Text style={styles.username}>@{username}</Text>}
+        <View style={styles.headerTextCol}>
+          <Text style={styles.name}>{name || "نام ثبت نشده"}</Text>
+
+          {!!username ? (
+            <Text style={styles.username}>{`@${username}`}</Text>
+          ) : null}
+
           <View style={styles.locationRow}>
-            <Ionicons name="location-sharp" size={ms(16)} color={COLORS.inputBg2} />
-            <Text style={styles.locationText}>{city}</Text>
+            <Ionicons
+              name="location-sharp"
+              size={ms(20)}
+              color={COLORS.inputBg2}
+              style={{ marginLeft: ms(4) }}
+            />
+            <Text style={styles.locationText}>{city || "شهر ثبت نشده"}</Text>
           </View>
         </View>
       </View>
 
-      {/* دکمه نظرات */}
-      <View style={styles.reviewsRow}>
+      {/* دکمه نظرات (استایل شبیه ProfileTab) */}
+      <View style={styles.ratingAndButtonRow}>
         <Pressable
           onPress={() =>
             navigation.navigate("ReviewsScreen", {
@@ -265,13 +303,20 @@ export default function TrainerPublicProfile() {
               rating,
               ratingCount,
               name,
+              username,
+              city,
               avatarUri,
             })
           }
           style={styles.reviewsButton}
         >
           <Text style={styles.reviewsButtonText}>نظرات ({ratingCount})</Text>
-          <AntDesign name="arrowleft" size={ms(16)} color={COLORS.white} style={{ marginLeft: ms(6) }} />
+          <AntDesign
+            name="arrowleft"
+            size={ms(18)}
+            color={COLORS.white}
+            style={{ marginLeft: ms(6) }}
+          />
         </Pressable>
       </View>
 
@@ -281,7 +326,7 @@ export default function TrainerPublicProfile() {
         <View style={styles.card}>
           {specialties.length > 0 ? (
             specialties.map((item, idx) => (
-              <View key={idx} style={styles.specialtyRow}>
+              <View key={`${item}-${idx}`} style={styles.specialtyRow}>
                 <View style={styles.bullet} />
                 <Text style={styles.cardText}>{item}</Text>
               </View>
@@ -292,8 +337,8 @@ export default function TrainerPublicProfile() {
         </View>
       </View>
 
-      {/* مدرک مربیگری */}
-      {certificateImageUrl && (
+      {/* مدرک مربیگری (فقط اگر هست؛ بدون اضافه کردن بخش جدید) */}
+      {certificateImageUrl ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>مدرک مربیگری:</Text>
           <View style={[styles.card, styles.certificateCard]}>
@@ -307,30 +352,40 @@ export default function TrainerPublicProfile() {
                 resizeMode="cover"
               />
               <View style={styles.certificateOverlay}>
-                <Feather name="maximize-2" size={ms(18)} color={COLORS.white} style={{ marginLeft: ms(6) }} />
-                <Text style={styles.certificateOverlayText}>مشاهده کامل</Text>
+                <Feather
+                  name="maximize-2"
+                  size={ms(18)}
+                  color={COLORS.white}
+                  style={{ marginLeft: ms(6) }}
+                />
+                <Text style={styles.certificateOverlayText}>
+                  مشاهده در اندازه کامل
+                </Text>
               </View>
             </Pressable>
           </View>
         </View>
-      )}
+      ) : null}
 
-      {/* بیوگرافی */}
+      {/* توضیحات */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>توضیحات و سوابق:</Text>
         <View style={[styles.card, styles.descCard]}>
-          <Text style={description ? styles.cardText : styles.placeholderText}>
-            {description || "توضیحاتی ثبت نشده است."}
-          </Text>
+          {description ? (
+            <Text style={styles.cardText}>{description}</Text>
+          ) : (
+            <Text style={styles.placeholderText}>توضیحاتی ثبت نشده است.</Text>
+          )}
         </View>
       </View>
 
-      {/* پلن‌ها (اسلایدر) */}
+      {/* پلن‌ها (اسلایدر شبیه ProfileTab، بدون اضافه کردن صفحه ساخت) */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>پلن‌ها و اشتراک‌ها:</Text>
+
         {subscriptions.length > 0 ? (
-          <View style={styles.subWrapper}>
-            <View style={styles.subViewport}>
+          <View style={styles.subSectionCardWrapper}>
+            <View style={styles.subPagerViewport}>
               <ScrollView
                 ref={subScrollRef}
                 horizontal
@@ -338,23 +393,33 @@ export default function TrainerPublicProfile() {
                 snapToInterval={CARD_WIDTH}
                 snapToAlignment="start"
                 decelerationRate="fast"
+                disableIntervalMomentum
+                bounces={false}
+                alwaysBounceHorizontal={false}
                 showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={handleMomentumEnd}
-                contentContainerStyle={{ paddingHorizontal: (SCREEN_WIDTH - CARD_WIDTH) / 2 - ms(30) }} // وسط چین کردن اولین کارت
+                onMomentumScrollEnd={handleSubMomentumEnd}
+                scrollEventThrottle={16}
+                contentOffset={{ x: activeSubIndex * CARD_WIDTH, y: 0 }}
               >
                 {subscriptions.map((sub) => (
-                  <View key={sub.id} style={styles.subPage}>
-                    <View style={styles.subCard}>
-                      <View style={styles.subCircle} />
-                      <View style={styles.subPriceBox}>
-                        <Text style={styles.subPrice}>{formatPrice(sub.priceText)}</Text>
-                        <Text style={styles.subUnit}>تومان</Text>
+                  <View key={sub.id} style={styles.subPagerPage}>
+                    <View style={styles.subscriptionCard}>
+                      <View style={styles.subscriptionCircle} />
+
+                      <View style={styles.subscriptionPriceContainer}>
+                        <Text style={styles.subscriptionPriceText}>
+                          {formatPrice(sub.priceText)}
+                        </Text>
+                        <Text style={styles.subscriptionPriceUnit}>تومان</Text>
                       </View>
-                      <View style={styles.subInfo}>
-                        <Text style={styles.subName}>{sub.name}</Text>
-                        <Text style={styles.subDuration}>{sub.durationLabel}</Text>
-                        <View style={styles.subDivider} />
-                        <Text style={styles.subDesc} numberOfLines={2}>
+
+                      <View style={styles.subscriptionInfoBlock}>
+                        <Text style={styles.subscriptionName}>{sub.name}</Text>
+                        <Text style={styles.subscriptionDuration}>
+                          {sub.durationLabel}
+                        </Text>
+                        <View style={styles.subscriptionDivider} />
+                        <Text style={styles.subscriptionMore} numberOfLines={2}>
                           {sub.descriptionShort}
                         </Text>
                       </View>
@@ -364,47 +429,93 @@ export default function TrainerPublicProfile() {
               </ScrollView>
             </View>
 
-            {/* نقطه‌های اسلایدر */}
-            <View style={styles.dotsRow}>
+            <View style={styles.subDotsRow}>
               {subscriptions.map((_, idx) => (
-                <Pressable key={idx} onPress={() => handleDotPress(idx)} hitSlop={10}>
-                  <View style={[styles.dot, idx === activeSubIndex && styles.dotActive]} />
+                <Pressable
+                  key={idx}
+                  onPress={() => handleDotPress(idx)}
+                  hitSlop={10}
+                >
+                  <View
+                    style={[
+                      styles.subDot,
+                      idx === activeSubIndex && styles.subDotActive,
+                    ]}
+                  />
                 </Pressable>
               ))}
             </View>
           </View>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.placeholderText}>این مربی هنوز پلنی تعریف نکرده است.</Text>
+            <Text style={styles.placeholderText}>
+              این مربی هنوز پلنی تعریف نکرده است.
+            </Text>
           </View>
         )}
       </View>
 
-      {/* ارتباط */}
+      {/* راه های ارتباطی */}
       <View style={[styles.section, { marginTop: ms(20) }]}>
-        <Text style={styles.sectionTitle}>راه‌های ارتباطی:</Text>
+        <Text style={styles.sectionTitle}>راه های ارتباطی:</Text>
         <View style={styles.contactsRow}>
-          <Pressable onPress={handleTelegram} disabled={!hasTelegram} style={[styles.contactBtn, !hasTelegram && styles.disabledBtn]}>
+          <Pressable
+            onPress={handleTelegram}
+            disabled={!hasTelegram}
+            style={[
+              styles.contactBtn,
+              !hasTelegram && styles.contactBtnDisabled,
+            ]}
+          >
             <TelegramIcon size={50} />
           </Pressable>
-          <Pressable onPress={handlePhone} disabled={!hasPhone} style={[styles.contactBtn, !hasPhone && styles.disabledBtn]}>
+
+          <Pressable
+            onPress={handlePhone}
+            disabled={!hasPhone}
+            style={[styles.contactBtn, !hasPhone && styles.contactBtnDisabled]}
+          >
             <TamasIcon size={45} />
           </Pressable>
-          <Pressable onPress={handleInstagram} disabled={!hasInstagram} style={[styles.contactBtn, !hasInstagram && styles.disabledBtn]}>
+
+          <Pressable
+            onPress={handleInstagram}
+            disabled={!hasInstagram}
+            style={[
+              styles.contactBtn,
+              !hasInstagram && styles.contactBtnDisabled,
+            ]}
+          >
             <InstaIcon size={50} />
           </Pressable>
         </View>
       </View>
 
-      {/* مودال مدرک */}
-      <Modal visible={certificateModalVisible} transparent animationType="fade" onRequestClose={() => setCertificateModalVisible(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setCertificateModalVisible(false)} />
-        <View style={styles.modalContent}>
-          <Pressable style={styles.modalClose} onPress={() => setCertificateModalVisible(false)}>
-            <Feather name="x" size={ms(24)} color={COLORS.white} />
+      {/* مودال مدرک (شبیه ProfileTab) */}
+      <Modal
+        visible={certificateModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCertificateModalVisible(false)}
+      >
+        <Pressable
+          style={styles.fullModalBackdrop}
+          onPress={() => setCertificateModalVisible(false)}
+        />
+        <View style={styles.fullModalContent}>
+          <Pressable
+            style={styles.fullModalClose}
+            onPress={() => setCertificateModalVisible(false)}
+          >
+            <Feather name="x" size={ms(22)} color={COLORS.white} />
           </Pressable>
+
           {certificateImageUrl && (
-            <Image source={{ uri: certificateImageUrl }} style={styles.modalImage} resizeMode="contain" />
+            <Image
+              source={{ uri: certificateImageUrl }}
+              style={styles.fullModalImage}
+              resizeMode="contain"
+            />
           )}
         </View>
       </Modal>
@@ -414,88 +525,215 @@ export default function TrainerPublicProfile() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  contentContainer: { paddingBottom: ms(32) },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.bg },
+  contentContainer: {
+    paddingBottom: ms(32),
+    paddingHorizontal: ms(30),
+    paddingTop: ms(12),
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.bg,
+  },
 
-  // هدر
+  // ---------- header (مثل ProfileTab) ----------
   header: {
     flexDirection: "row-reverse",
     alignItems: "flex-end",
-    marginTop: ms(24),
-    marginBottom: ms(24),
-    paddingHorizontal: ms(20),
+    marginBottom: ms(30),
+    marginTop: ms(30),
   },
   backButton: {
     position: "absolute",
-    left: ms(20),
-    top: ms(-10),
+    left: ms(-6),
+    top: ms(-20),
     padding: ms(8),
     zIndex: 10,
   },
-  avatarWrapper: {
-    width: ms(100),
-    height: ms(100),
-    borderRadius: ms(50),
-    backgroundColor: COLORS.inputBg2,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: ms(16),
-  },
-  avatarPlaceholder: { width: "100%", height: "100%", borderRadius: ms(50), backgroundColor: COLORS.inputBg2, justifyContent: "center", alignItems: "center" },
-  avatarImage: { width: "100%", height: "100%", borderRadius: ms(50) },
-  
-  headerInfo: { flex: 1, alignItems: "flex-end", justifyContent: "center", marginBottom: ms(10) },
-  name: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(16), color: COLORS.white, marginBottom: ms(4) },
-  username: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.text2, marginBottom: ms(6) },
-  locationRow: { flexDirection: "row-reverse", alignItems: "center", gap: ms(4) },
-  locationText: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.white },
-
-  starsRow: { position: "absolute", left: ms(20), top: ms(40), flexDirection: "row-reverse", alignItems: "center", gap: ms(4) },
-  ratingNumber: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(14), color: COLORS.primary },
-
-  // دکمه نظرات
-  reviewsRow: { alignItems: "center", marginTop: ms(-10), marginBottom: ms(20) },
-  reviewsButton: {
-    backgroundColor: "#444",
-    paddingVertical: ms(8),
-    paddingHorizontal: ms(16),
-    borderRadius: ms(20),
+  starsUnderBack: {
+    position: "absolute",
+    left: ms(-1),
+    top: ms(33),
     flexDirection: "row-reverse",
     alignItems: "center",
   },
-  reviewsButtonText: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(12), color: COLORS.white },
-
-  // سکشن‌ها
-  section: { marginBottom: ms(16), paddingHorizontal: ms(24) },
-  sectionTitle: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(13), color: COLORS.primary, textAlign: "right", marginBottom: ms(10) },
-  card: { backgroundColor: COLORS.inputBg2, borderRadius: ms(16), padding: ms(16) },
-  cardText: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.text, textAlign: "right", lineHeight: ms(20) },
-  placeholderText: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.text2, textAlign: "right" },
-  
-  specialtyRow: { flexDirection: "row-reverse", alignItems: "center", marginBottom: ms(6) },
-  bullet: { width: ms(6), height: ms(6), borderRadius: ms(3), backgroundColor: COLORS.primary, marginLeft: ms(8) },
-
-  descCard: { minHeight: ms(80) },
-
-  // مدرک
-  certificateCard: { height: ms(160), padding: 0, overflow: "hidden" },
-  certificateThumbWrapper: { width: "100%", height: "100%" },
-  certificateThumb: { width: "100%", height: "100%" },
-  certificateOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.6)", padding: ms(8), flexDirection: "row-reverse", alignItems: "center" },
-  certificateOverlayText: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.white },
-
-  // اسلایدر پلن‌ها
-  subWrapper: { alignItems: "center" },
-  subViewport: { height: CARD_HEIGHT },
-  subPage: { width: CARD_WIDTH, paddingHorizontal: ms(5) },
-  subCard: {
+  ratingNumber: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(13),
+    color: COLORS.primary,
+    marginRight: ms(6),
+  },
+  avatarWrapper: {
+    width: ms(110),
+    height: ms(110),
+    borderRadius: ms(55),
+    backgroundColor: COLORS.inputBg2,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: ms(12),
+  },
+  avatarPlaceholder: {
+    width: "100%",
     height: "100%",
+    borderRadius: ms(55),
+    backgroundColor: COLORS.inputBg2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarImage: { width: "100%", height: "100%", borderRadius: ms(55) },
+  headerTextCol: {
+    flex: 1,
+    flexDirection: "column",
+    marginRight: ms(25),
+    marginBottom: ms(23),
+    gap: ms(8),
+  },
+  name: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(16),
+    color: COLORS.white,
+    marginBottom: ms(4),
+    marginLeft: ms(20),
+    textAlign: "right",
+  },
+  username: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.white,
+    marginBottom: ms(4),
+    marginLeft: ms(20),
+    textAlign: "right",
+  },
+  locationRow: { flexDirection: "row-reverse", alignItems: "center" },
+  locationText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.white,
+  },
+
+  // ---------- reviews button row ----------
+  ratingAndButtonRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: ms(10),
+  },
+  reviewsButton: {
+    backgroundColor: "#444",
+    paddingVertical: ms(6),
+    paddingHorizontal: ms(10),
+    transform: [{ translateY: ms(-33) }],
+    borderRadius: ms(20),
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginRight: ms(12),
+  },
+  reviewsButtonText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(12),
+    color: COLORS.white,
+  },
+
+  // ---------- sections/cards (مثل ProfileTab) ----------
+  section: { marginBottom: ms(12) },
+  sectionTitle: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(13),
+    color: COLORS.primary,
+    textAlign: "right",
+    marginBottom: ms(15),
+  },
+  card: {
+    backgroundColor: COLORS.inputBg2,
+    borderRadius: ms(16),
+    paddingHorizontal: ms(16),
+    paddingVertical: ms(12),
+  },
+  descCard: { minHeight: ms(90), justifyContent: "flex-start" },
+  cardText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text,
+    textAlign: "right",
+    lineHeight: ms(18),
+  },
+  placeholderText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text2,
+    textAlign: "right",
+    lineHeight: ms(18),
+  },
+  specialtyRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginBottom: ms(4),
+  },
+  bullet: {
+    width: ms(6),
+    height: ms(6),
+    borderRadius: ms(3),
+    backgroundColor: COLORS.primary,
+    marginLeft: ms(8),
+  },
+
+  // ---------- certificate (مثل ProfileTab) ----------
+  certificateCard: {
+    height: ms(70),
+    justifyContent: "center",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+  certificateThumbWrapper: {
+    width: "100%",
+    height: "100%",
+    borderRadius: ms(12),
+    overflow: "hidden",
+    alignSelf: "flex-end",
+  },
+  certificateThumb: { width: "100%", height: "100%" },
+  certificateOverlay: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    left: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingVertical: ms(5),
+    paddingHorizontal: ms(10),
+    flexDirection: "row-reverse",
+    alignItems: "center",
+  },
+  certificateOverlayText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(11),
+    color: COLORS.white,
+  },
+
+  // ---------- plans slider (مثل ProfileTab) ----------
+  subSectionCardWrapper: {
+    backgroundColor: "transparent",
+    alignItems: "center",
+  },
+  subPagerViewport: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: ms(24),
+    overflow: "hidden",
+    alignSelf: "center",
+  },
+  subPagerPage: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+  },
+  subscriptionCard: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
     borderRadius: ms(24),
     backgroundColor: COLORS.lighgreen,
     overflow: "hidden",
-    position: "relative",
+    justifyContent: "center",
   },
-  subCircle: {
+  subscriptionCircle: {
     position: "absolute",
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
@@ -504,28 +742,108 @@ const styles = StyleSheet.create({
     left: -CIRCLE_SIZE / 2,
     top: -CIRCLE_SIZE / 2,
   },
-  subPriceBox: { position: "absolute", left: ms(20), bottom: ms(20), alignItems: "flex-start" },
-  subPrice: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(18), color: COLORS.text3, marginBottom: ms(-4) },
-  subUnit: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.text3, alignSelf: "flex-end" },
-  
-  subInfo: { marginLeft: INFO_MARGIN_LEFT, padding: ms(14), height: "100%", justifyContent: "center" },
-  subName: { fontFamily: "Vazirmatn_700Bold", fontSize: ms(14), color: COLORS.text3, textAlign: "right" },
-  subDuration: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(12), color: COLORS.text3, textAlign: "right", marginTop: ms(2) },
-  subDivider: { height: 1, backgroundColor: COLORS.text3, width: "100%", marginVertical: ms(8), opacity: 0.5 },
-  subDesc: { fontFamily: "Vazirmatn_400Regular", fontSize: ms(11), color: COLORS.text3, textAlign: "right" },
+  subscriptionPriceContainer: {
+    position: "absolute",
+    left: ms(20),
+    bottom: ms(20),
+    alignItems: "flex-start",
+  },
+  subscriptionPriceText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(16),
+    color: COLORS.text3,
+    transform: [{ translateY: ms(-15) }],
+  },
+  subscriptionPriceUnit: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    transform: [{ translateY: ms(-12) }, { translateX: ms(40) }],
+    marginTop: ms(4),
+  },
+  subscriptionInfoBlock: {
+    marginLeft: INFO_MARGIN_LEFT,
+    paddingRight: ms(18),
+    paddingVertical: ms(14),
+    justifyContent: "space-between",
+  },
+  subscriptionName: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.text3,
+    textAlign: "right",
+  },
+  subscriptionDuration: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    textAlign: "right",
+    marginTop: ms(4),
+  },
+  subscriptionDivider: {
+    width: "70%",
+    transform: [{ translateX: ms(60) }, { translateY: ms(-10) }],
+    height: ms(1),
+    backgroundColor: COLORS.text3,
+    marginTop: ms(12),
+    marginBottom: ms(8),
+  },
+  subscriptionMore: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(12),
+    color: COLORS.text3,
+    textAlign: "right",
+  },
+  subDotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: ms(10),
+  },
+  subDot: {
+    width: ms(7),
+    height: ms(7),
+    borderRadius: ms(3.5),
+    backgroundColor: "transparent",
+    borderWidth: ms(1.2),
+    borderColor: COLORS.lighgreen,
+    marginHorizontal: ms(3),
+  },
+  subDotActive: { backgroundColor: COLORS.lighgreen },
 
-  dotsRow: { flexDirection: "row", marginTop: ms(12), gap: ms(6) },
-  dot: { width: ms(8), height: ms(8), borderRadius: ms(4), borderWidth: 1, borderColor: COLORS.lighgreen },
-  dotActive: { backgroundColor: COLORS.lighgreen },
+  // ---------- contacts row (مثل ProfileTab) ----------
+  contactsRow: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-around",
+    marginTop: ms(10),
+    marginRight: ms(15),
+  },
+  contactBtn: {
+    width: ms(48),
+    height: ms(48),
+    borderRadius: ms(24),
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: ms(12),
+  },
+  contactBtnDisabled: { opacity: 0.4 },
 
-  // تماس
-  contactsRow: { flexDirection: "row-reverse", justifyContent: "center", gap: ms(24), marginTop: ms(8) },
-  contactBtn: { width: ms(50), height: ms(50), justifyContent: "center", alignItems: "center" },
-  disabledBtn: { opacity: 0.3 },
-
-  // مودال فول اسکرین
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)" },
-  modalContent: { position: "absolute", inset: 0, justifyContent: "center", alignItems: "center" },
-  modalImage: { width: "100%", height: "80%" },
-  modalClose: { position: "absolute", top: ms(40), left: ms(20), padding: ms(10), zIndex: 10 },
+  // ---------- full screen modal (مثل ProfileTab) ----------
+  fullModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
+  fullModalContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullModalImage: { width: "90%", height: "80%" },
+  fullModalClose: {
+    position: "absolute",
+    top: ms(40),
+    left: ms(24),
+    zIndex: 10,
+    padding: ms(8),
+  },
 });
