@@ -1,8 +1,9 @@
 // src/screens/home/HomeScreen.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
+import TopTrainersScreen from "./TopTrainersScreen";
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
@@ -12,17 +13,27 @@ import HomeTab from "../../components/home/HomeTab";
 import { useProfileStore } from "../../store/profileStore";
 
 export default function HomeScreen() {
-  const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
+  const [activeTab, setActiveTab] = useState("home");
+  const [homePage, setHomePage] = useState("main"); // "main" | "topTrainers"
   const role = useProfileStore((s) => s.profile?.role);
+
+  useEffect(() => {
+    if (activeTab !== "home" && homePage !== "main") {
+      setHomePage("main");
+    }
+  }, [activeTab, homePage]);
 
   const renderContent = () => {
     if (activeTab === "home") {
-      // ✅ فقط کاربر عادی
       if (role === "client") {
+        if (homePage === "topTrainers") {
+          return <TopTrainersScreen onBack={() => setHomePage("main")} />;
+        }
+
         return (
           <HomeTab
             onPressProfile={() => setActiveTab("profile")}
-            onPressAllTrainers={() => {}}
+            onPressAllTrainers={() => setHomePage("topTrainers")} // ✅ اینجا
             onPressAllCategories={() => {}}
           />
         );
