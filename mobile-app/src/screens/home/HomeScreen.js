@@ -18,6 +18,9 @@ import TrainerPublicProfile from "../../components/home/TrainerPublicProfile";
 import SportsCategoriesScreen from "../../components/home/SportsCategoriesScreen";
 import SportTrainersScreen from "../../components/home/SportTrainersScreen";
 
+// ✅ NEW
+import CoachHomeTab from "../../components/home/CoachHomeTab";
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -147,9 +150,25 @@ export default function HomeScreen() {
     );
   };
 
+  // ✅ NEW: coach home renderer
+  const renderHomeCoach = () => {
+    // فعلاً فقط UI صفحه Home مربی طبق فیگما
+    // برای آینده اگر صفحه‌های تو در تو خواستی، همین‌جا مشابه renderHomeClient گسترش می‌دهیم
+    return (
+      <CoachHomeTab
+        onSelectAthlete={(athlete) => {
+          // فعلاً هیچ navigation جدیدی نمی‌زنیم تا مطابق درخواستت UI-only باشد
+          // بعداً می‌توانی اینجا مثلاً بروی صفحه AthleteProfile داخل همین HomeScreen
+          console.log("Selected athlete:", athlete?.id);
+        }}
+      />
+    );
+  };
+
   const renderContent = () => {
     if (activeTab === "home") {
       if (role === "client") return renderHomeClient();
+      if (role === "coach") return renderHomeCoach();
 
       return (
         <View style={styles.centerContent}>
