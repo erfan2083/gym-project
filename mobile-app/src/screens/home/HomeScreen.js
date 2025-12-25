@@ -5,7 +5,7 @@ import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 
 import { useNavigation, useRoute } from "@react-navigation/native";
-
+import CoachWorkoutsTab from "../../components/home/CoachWorkoutsTab";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
@@ -178,9 +178,12 @@ export default function HomeScreen() {
     }
 
     if (activeTab === "workout") {
+      if (role === "coach") return <CoachWorkoutsTab />;
+
+      // کلاینت (فعلاً همون placeholder)
       return (
         <View style={styles.centerContent}>
-          <Text style={styles.contentText}>صفحه تمرین‌ها</Text>
+          <Text style={styles.contentText}>تمرینات کاربر</Text>
         </View>
       );
     }
