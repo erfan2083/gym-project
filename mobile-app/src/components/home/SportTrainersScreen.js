@@ -25,13 +25,13 @@ const safeGetTrainerApi = () => {
   }
 };
 
-const FALLBACK_TRAINERS = [
-  { id: "t1", name: "نام مربی", rating: 4.5, city: "شهر" },
-  { id: "t2", name: "نام مربی", rating: 4.0, city: "شهر" },
-  { id: "t3", name: "نام مربی", rating: 5.0, city: "شهر" },
-  { id: "t4", name: "نام مربی", rating: 4.6, city: "شهر" },
-  { id: "t5", name: "نام مربی", rating: 4.2, city: "شهر" },
-];
+// const FALLBACK_TRAINERS = [
+//   { id: "t1", name: "نام مربی", rating: 4.5, city: "شهر" },
+//   { id: "t2", name: "نام مربی", rating: 4.0, city: "شهر" },
+//   { id: "t3", name: "نام مربی", rating: 5.0, city: "شهر" },
+//   { id: "t4", name: "نام مربی", rating: 4.6, city: "شهر" },
+//   { id: "t5", name: "نام مربی", rating: 4.2, city: "شهر" },
+// ];
 
 function TrainerRowCard({ t, onPress }) {
   const name = t?.name ?? "نام مربی";
@@ -91,7 +91,7 @@ export default function SportTrainersScreen({ sport, onBack }) {
     (async () => {
       // اگر sport نداریم، فقط فال‌بک
       if (!sport) {
-        setTrainers(FALLBACK_TRAINERS);
+       // setTrainers(FALLBACK_TRAINERS);
         return;
       }
 
@@ -102,7 +102,7 @@ export default function SportTrainersScreen({ sport, onBack }) {
         api?.getSportTrainers;
 
       if (typeof fn !== "function") {
-        setTrainers(FALLBACK_TRAINERS);
+        //setTrainers(FALLBACK_TRAINERS);
         return;
       }
 
@@ -124,11 +124,11 @@ export default function SportTrainersScreen({ sport, onBack }) {
           }));
           setTrainers(normalized);
         } else {
-          setTrainers(FALLBACK_TRAINERS);
+          //setTrainers(FALLBACK_TRAINERS);
         }
       } catch (e) {
         console.log("getTrainersBySport error:", e?.message || e);
-        setTrainers(FALLBACK_TRAINERS);
+        //setTrainers(FALLBACK_TRAINERS);
       } finally {
         if (mounted) setLoading(false);
       }

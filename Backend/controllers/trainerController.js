@@ -700,3 +700,40 @@ export const getTrainerProfile = async (req, res) => {
       .json({ message: "خطای سرور در گرفتن پروفایل مربی" });
   }
 };
+
+
+
+// GET /api/trainer/specialties/with-count
+export const listSpecialtiesWithCount = async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_specialties_with_trainer_count()'
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error("listSpecialtiesWithCount error:", err);
+    return res.status(500).json({ message: "خطای سرور در دریافت رشته‌ها" });
+  }
+};
+
+// GET /api/trainer/specialties/:specialtyId/trainers
+export const getTrainersBySpecialty = async (req, res) => {
+  const { specialtyId } = req.params;
+  console.log(specialtyId);
+
+  if (!specialtyId) {
+    return res.status(400).json({ message: "specialtyId الزامی است" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainers_by_specialty($1)',
+      [Number(specialtyId)]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("getTrainersBySpecialty error:", err);
+    return res.status(500).json({ message: "خطای سرور در دریافت مربی‌ها" });
+  }
+};

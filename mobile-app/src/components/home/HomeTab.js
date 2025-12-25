@@ -422,11 +422,11 @@ export default function HomeTab({
 
               const mapId =
                 c.title === "فیتنس"
-                  ? "fitness"
+                  ? "2"
                   : c.title === "یوگا"
-                  ? "yoga"
+                  ? "7"
                   : c.title === "بدنسازی"
-                  ? "bodybuilding"
+                  ? "1"
                   : c.id;
 
               onSelectSport?.({

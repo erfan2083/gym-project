@@ -55,7 +55,7 @@ export default function SportsCategoriesScreen({ onBack, onSelectSport }) {
           const normalized = list.map((x, idx) => ({
             id: x?.id ?? String(idx),
             title: x?.title || x?.name || "رشته",
-            count: Number(x?.count || x?.trainerCount || 0),
+            count: Number(x?.count || x?.trainerCount || x?.trainer_count || 0),
             iconType: x?.iconType || x?.key || x?.id || "fitness",
           }));
           setSports(normalized);

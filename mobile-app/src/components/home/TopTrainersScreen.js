@@ -50,6 +50,7 @@ export default function TopTrainersScreen({ onBack, onSelectTrainer }) {
 
         // اگر API limit می‌گیرد، عدد بزرگ‌تر بده تا لیست کامل‌تر بیاید
         const list = await getTopTrainers(50);
+        console.log(list);
 
         if (!mounted) return;
 

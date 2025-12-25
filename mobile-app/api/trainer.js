@@ -252,3 +252,38 @@ export const getTrainerProfileById = async (trainerId) => {
   const res = await api.get(`/api/trainer/profile/${trainerId}`);
   return res.data;
 };
+
+
+/**
+ * لیست رشته‌ها + تعداد مربی هر رشته
+ * GET /api/trainer/specialties/with-count
+ */
+export async function getSportsCategories() {
+  const res = await api.get("/api/trainer/specialties/with-count");
+
+  // خروجی DB: {id, name, trainer_count}
+  return (res.data || []).map((x) => ({
+    id: x.id,
+    title: x.name,
+    count: Number(x.trainer_count || 0),
+    iconType: x.id, // فعلاً برای مپ‌کردن آیکن در UI
+  }));
+}
+
+/**
+ * لیست مربی‌های یک رشته
+ * GET /api/trainer/specialties/:specialtyId/trainers
+ */
+export async function getTrainersBySport(specialtyId) {
+  const res = await api.get(`/api/trainer/specialties/${specialtyId}/trainers`);
+
+  return (res.data || []).map((t) => ({
+    id: t.id,
+    name: t.full_name || t.username || "مربی",
+    avatarUrl: t.avatar_url || null,
+    username: t.username,
+    city: t.city || "نامشخص",
+    rating: Number(t.rating || 0),
+    reviewCount: Number(t.review_count || 0),
+  }));
+}
