@@ -56,7 +56,7 @@ export default function SportsCategoriesScreen({ onBack, onSelectSport }) {
             id: x?.id ?? String(idx),
             title: x?.title || x?.name || "رشته",
             count: Number(x?.count || x?.trainerCount || x?.trainer_count || 0),
-            iconType: x?.iconType || x?.key || x?.id || "fitness",
+            iconType: x?.title || x?.name || null,
           }));
           setSports(normalized);
         } else {
@@ -76,9 +76,9 @@ export default function SportsCategoriesScreen({ onBack, onSelectSport }) {
   }, [api]);
 
   const renderIcon = (iconType) => {
-    // مطابق فیگما: آیکون سمت راست داخل یک دایره
-    if (iconType === "yoga") return <Yogaicon size={ms(30)} />;
-    if (iconType === "bodybuilding") return <HomeDumbbell size={ms(30)} />;
+  if (iconType === "یوگا") return <Yogaicon size={ms(30)} />;
+  if (iconType === "بدنسازی") return <HomeDumbbell size={ms(30)} />;
+  if (iconType === "فیتنس") {
     return (
       <MaterialCommunityIcons
         name="heart-pulse"
@@ -86,7 +86,10 @@ export default function SportsCategoriesScreen({ onBack, onSelectSport }) {
         color={COLORS.lighgreen}
       />
     );
-  };
+  }
+  return null; // بقیه هیچ آیکونی ندارن
+};
+
 
   return (
     <View style={styles.container}>
@@ -118,7 +121,7 @@ export default function SportsCategoriesScreen({ onBack, onSelectSport }) {
               <Text style={styles.sportTitle} numberOfLines={1}>
                 {s.title}
               </Text>
-              <View>{renderIcon(s.iconType)}</View>
+              {renderIcon(s.iconType) ? <View>{renderIcon(s.iconType)}</View> : null}
             </View>
 
             {/* چپ: تعداد مربی */}

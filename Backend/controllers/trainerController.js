@@ -719,7 +719,6 @@ export const listSpecialtiesWithCount = async (req, res) => {
 // GET /api/trainer/specialties/:specialtyId/trainers
 export const getTrainersBySpecialty = async (req, res) => {
   const { specialtyId } = req.params;
-  console.log(specialtyId);
 
   if (!specialtyId) {
     return res.status(400).json({ message: "specialtyId الزامی است" });
