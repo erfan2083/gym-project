@@ -1,13 +1,5 @@
-// src/components/home/CoachHomeTab.js
-import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Pressable,
-} from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TextInput } from "react-native";
 import { ms } from "react-native-size-matters";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -15,14 +7,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
 import MyAthleteRow from "./MyAthleteRow";
-
-const MOCK_ATHLETES = [
-  { id: "a1", name: "نام و نام خانوادگی کاربر" },
-  { id: "a2", name: "نام و نام خانوادگی کاربر" },
-  { id: "a3", name: "نام و نام خانوادگی کاربر" },
-  { id: "a4", name: "نام و نام خانوادگی کاربر" },
-  { id: "a5", name: "نام و نام خانوادگی کاربر" },
-];
+import { getMyAthletes } from "../../../api/trainer"; // مسیر را مطابق پروژه‌ات تنظیم کن
 
 export default function CoachHomeTab({ onSelectAthlete }) {
   const profile = useProfileStore((s) => s.profile);
@@ -33,18 +18,43 @@ export default function CoachHomeTab({ onSelectAthlete }) {
   }, [profile?.name, profile?.username]);
 
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [athletes, setAthletes] = useState([]);
+  const [error, setError] = useState("");
 
-  // فعلاً سرچ فقط UI باشد؛ برای آینده آماده نگه می‌داریم
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getMyAthletes();
+        if (!mounted) return;
+        setAthletes(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!mounted) return;
+        setError("خطا در دریافت ورزشکاران");
+        setAthletes([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const athletesToShow = useMemo(() => {
-    const q = String(query || "").trim();
-    if (!q) return MOCK_ATHLETES;
-    // فیلتر ساده امن (بعداً می‌توانی به API وصل کنی)
-    return MOCK_ATHLETES.filter((a) =>
-      String(a?.name || "")
-        .toLowerCase()
-        .includes(q.toLowerCase())
+    const q = String(query || "").trim().toLowerCase();
+    if (!q) return athletes;
+
+    return athletes.filter((a) =>
+      String(a?.name || "").toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, athletes]);
 
   return (
     <ScrollView
@@ -71,7 +81,7 @@ export default function CoachHomeTab({ onSelectAthlete }) {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="جستجو در فیتنس"
+          placeholder="جستجو در ورزشکاران"
           placeholderTextColor={COLORS.text2}
           style={styles.searchInput}
           textAlign="right"
@@ -84,17 +94,29 @@ export default function CoachHomeTab({ onSelectAthlete }) {
         <View style={styles.sectionHeaderLine} />
       </View>
 
-      {/* List */}
-      <View style={styles.listWrap}>
-        {athletesToShow.map((a, idx) => (
-          <MyAthleteRow
-            key={a?.id ? String(a.id) : `ath-${idx}`}
-            athlete={a}
-            onPress={(athlete) => onSelectAthlete?.(athlete)}
-            style={styles.rowSpacing}
-          />
-        ))}
-      </View>
+      {/* States */}
+      {loading ? (
+        <Text style={{ color: COLORS.text2, textAlign: "right" }}>
+          در حال دریافت...
+        </Text>
+      ) : error ? (
+        <Text style={{ color: COLORS.danger, textAlign: "right" }}>{error}</Text>
+      ) : athletesToShow.length === 0 ? (
+        <Text style={{ color: COLORS.text2, textAlign: "right" }}>
+          هنوز ورزشکاری ندارید.
+        </Text>
+      ) : (
+        <View style={styles.listWrap}>
+          {athletesToShow.map((a, idx) => (
+            <MyAthleteRow
+              key={a?.id ? String(a.id) : `ath-${idx}`}
+              athlete={a}
+              onPress={(athlete) => onSelectAthlete?.(athlete)}
+              style={styles.rowSpacing}
+            />
+          ))}
+        </View>
+      )}
 
       <View style={{ height: ms(10) }} />
     </ScrollView>
@@ -163,8 +185,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
 
-  listWrap: {
-    gap: ms(30),
-  },
+  listWrap: { gap: ms(30) },
   rowSpacing: {},
 });

@@ -736,3 +736,32 @@ export const getTrainersBySpecialty = async (req, res) => {
     return res.status(500).json({ message: "خطای سرور در دریافت مربی‌ها" });
   }
 };
+
+
+
+// controllers/trainerController.js
+export const getMyAthletes = async (req, res) => {
+  const trainerId = req.user?.id;
+  if (!trainerId) return res.status(401).json({ message: "Unauthorized" });
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_coach_athletes($1)',
+      [trainerId]
+    );
+
+    // نرمالایز خروجی برای فرانت
+    const mapped = rows.map((r) => ({
+      id: String(r.trainee_id),
+      name: r.full_name || "کاربر",
+      avatarUrl: r.avatar_url || null,
+      activeSubscriptionsCount: Number(r.active_subscriptions_count || 0),
+      latestEndDate: r.latest_end_date || null,
+    }));
+
+    return res.json(mapped);
+  } catch (e) {
+    console.error("getMyAthletes error:", e);
+    return res.status(500).json({ message: "خطا در دریافت شاگردها" });
+  }
+};

@@ -287,3 +287,9 @@ export async function getTrainersBySport(specialtyId) {
     reviewCount: Number(t.review_count || 0),
   }));
 }
+
+
+export async function getMyAthletes() {
+  const res = await api.get("/api/trainer/my-athletes");
+  return res.data || [];
+}

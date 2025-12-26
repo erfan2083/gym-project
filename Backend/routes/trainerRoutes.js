@@ -18,7 +18,7 @@ import {
   getTrainerProfile,
   listSpecialtiesWithCount,
   getTrainersBySpecialty,
-  
+  getMyAthletes,
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -70,6 +70,9 @@ trainerRouter.get("/profile/:trainerId", getTrainerProfile);
 
 trainerRouter.get("/specialties/with-count", listSpecialtiesWithCount);
 trainerRouter.get("/specialties/:specialtyId/trainers", getTrainersBySpecialty);
+
+
+trainerRouter.get("/my-athletes", authMiddleware, getMyAthletes);
 
 
 export default trainerRouter;
