@@ -2,7 +2,8 @@ import express from "express";
 import {
   updateUserAvatar,
   uploadAvatarMiddleware,
-  addReview
+  addReview,
+  purchasePlan
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -20,6 +21,9 @@ userRouter.post(
   authMiddleware,          // باید لاگین باشه
   addReview
 );
+
+
+userRouter.post("/subscriptions/purchase", authMiddleware, purchasePlan);
 
 
 export default userRouter;

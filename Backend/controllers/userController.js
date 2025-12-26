@@ -93,3 +93,28 @@ export const addReview = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+export const purchasePlan = async (req, res) => {
+  const traineeId = req.user?.id; // از auth middleware
+  const { planId } = req.body;
+
+  if (!traineeId) return res.status(401).json({ message: "Unauthorized" });
+  if (!planId) return res.status(400).json({ message: "planId is required" });
+
+  try {
+    // OUT params در CALL معمولاً به صورت یک row برمی‌گرده (با pg)
+    const { rows } = await pool.query(
+      'CALL "gym-project".purchase_plan($1, $2, NULL, NULL)',
+      [traineeId, Number(planId)]
+    );
+
+    // بعضی setups rows[0] می‌ده، بعضی نه. پس بهتره بلافاصله SELECT هم بزنیم
+    // (اگر خواستی، دقیقاً مطابق db helper خودت تنظیم می‌کنم)
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("purchasePlan error:", e);
+    return res.status(400).json({ message: e.message || "Purchase failed" });
+  }
+};
