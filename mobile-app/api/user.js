@@ -25,3 +25,9 @@ export const createTrainerReview = (trainerId, { rating, comment }) => {
     comment: comment || null,
   });
 };
+
+
+export async function purchasePlan(planId) {
+  const res = await api.post("/api/user/subscriptions/purchase", { planId });
+  return res.data;
+}

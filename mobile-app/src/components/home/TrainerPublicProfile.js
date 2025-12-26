@@ -32,6 +32,10 @@ import {
   getTrainerProfileById,
 } from "../../../api/trainer.js";
 
+import {
+  purchasePlan
+} from "../../../api/user.js";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - ms(60);
 
@@ -123,6 +127,8 @@ export default function TrainerPublicProfile({
   const [buyModalVisible, setBuyModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
+  const [buyLoading, setBuyLoading] = useState(false);
+
   const openBuyModal = (plan) => {
     if (!plan) return;
     setSelectedPlan(plan);
@@ -135,25 +141,33 @@ export default function TrainerPublicProfile({
   };
 
   const handleBuyPress = () => {
-    if (!selectedPlan) return;
+  if (!selectedPlan) return;
 
-    Alert.alert(
-      "تایید خرید",
-      "آیا از خرید این اشتراک مطمئن هستید؟",
-      [
-        { text: "لغو", style: "cancel" },
-        {
-          text: "تایید",
-          style: "default",
-          onPress: () => {
+  Alert.alert(
+    "تایید خرید",
+    "آیا از خرید این اشتراک مطمئن هستید؟",
+    [
+      { text: "لغو", style: "cancel" },
+      {
+        text: buyLoading ? "..." : "تایید",
+        style: "default",
+        onPress: async () => {
+          try {
+            setBuyLoading(true);
+            await purchasePlan(Number(selectedPlan.id));
             Alert.alert("موفق", "خرید با موفقیت انجام شد");
             closeBuyModal();
-          },
+          } catch (e) {
+            Alert.alert("خطا", e?.message || "خرید ناموفق بود");
+          } finally {
+            setBuyLoading(false);
+          }
         },
-      ],
-      { cancelable: true }
-    );
-  };
+      },
+    ],
+    { cancelable: true }
+  );
+};
 
   const [activeSubIndex, setActiveSubIndex] = useState(0);
   const subScrollRef = useRef(null);
