@@ -86,6 +86,7 @@ export default function CoachWorkoutsTab({
     reps: "",
     notes: "",
   });
+  const [addingToPlan, setAddingToPlan] = useState(false);
 
   // Modal 2: ساخت تمرین جدید
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -409,6 +410,8 @@ export default function CoachWorkoutsTab({
 
   // ✅ Modal1 Submit: افزودن تمرین به برنامه روزانه
   const submitAddToPlan = async () => {
+    if (addingToPlan) return;
+
     const sets = Number(normalizeDigits(addDraft.sets));
     const reps = Number(normalizeDigits(addDraft.reps));
     const name = String(addDraft?.name || "").trim();
@@ -442,18 +445,27 @@ export default function CoachWorkoutsTab({
 
     console.log("Calling onAddToPlan with payload:", payload);
 
-    // ✅ فراخوانی callback
-    if (onAddToPlan) {
-      onAddToPlan(payload);
-    } else {
-      console.warn("onAddToPlan is not defined!");
-    }
+    try {
+      setAddingToPlan(true);
 
-    closeAddModal();
-    
-    // ✅ فراخوانی onPickDone برای برگشت به صفحه قبل
-    if (onPickDone) {
-      onPickDone();
+      // ✅ فراخوانی callback
+      if (onAddToPlan) {
+        await onAddToPlan(payload);
+      } else {
+        console.warn("onAddToPlan is not defined!");
+      }
+
+      closeAddModal();
+
+      // ✅ فراخوانی onPickDone برای برگشت به صفحه قبل
+      if (onPickDone) {
+        onPickDone();
+      }
+    } catch (error) {
+      console.error("Error adding workout to plan:", error);
+      Alert.alert("خطا", "افزودن تمرین انجام نشد");
+    } finally {
+      setAddingToPlan(false);
     }
   };
 

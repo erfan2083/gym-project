@@ -55,6 +55,7 @@ export default function HomeScreen() {
   const [coachWorkoutPage, setCoachWorkoutPage] = useState("list"); // "list" | "athletePlan" | "picker"
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [selectedPlanDay, setSelectedPlanDay] = useState(null);
+  const [planPickerContext, setPlanPickerContext] = useState(null); // payload از CoachAthletePlanScreen
 
   const [plansByAthlete, setPlansByAthlete] = useState({}); // { [athleteId]: { sat:[], sun:[], ... } }
 
@@ -72,6 +73,7 @@ export default function HomeScreen() {
   const openCoachAthletePlan = (athlete) => {
     setSelectedAthlete(athlete || null);
     setCoachWorkoutPage("athletePlan");
+    setPlanPickerContext(null);
     setActiveTab("workout");
   };
 
@@ -81,9 +83,23 @@ export default function HomeScreen() {
     setActiveTab("workout");
   };
 
+  const onNavigateFromPlanToPicker = (payload) => {
+    setPlanPickerContext(payload || null);
+    setCoachWorkoutPage("picker");
+    setActiveTab("workout");
+  };
+
   // ✅ CoachWorkoutsTab خروجی:
   // payload: { exerciseId, name, media, sets, reps }
-  const onAddToAthletePlan = (payload) => {
+  const onAddToAthletePlan = async (payload) => {
+    // اگر از CoachAthletePlanScreen آمده‌ایم، callback خودش را صدا بزنیم تا API را هم بزند
+    if (planPickerContext?.onAddExercise) {
+      await planPickerContext.onAddExercise(payload);
+      setPlanPickerContext(null);
+      setCoachWorkoutPage("athletePlan");
+      return;
+    }
+
     if (!selectedAthleteId || !selectedPlanDay) return;
 
     const item = {
@@ -117,6 +133,7 @@ export default function HomeScreen() {
     setCoachWorkoutPage("list");
     setSelectedAthlete(null);
     setSelectedPlanDay(null);
+    setPlanPickerContext(null);
     setActiveTab("home");
   };
 
@@ -272,6 +289,7 @@ export default function HomeScreen() {
           athlete={selectedAthlete}
           planByDay={planByDayForSelected}
           onPressAddForDay={onAddExerciseForDay}
+          onNavigateToWorkouts={onNavigateFromPlanToPicker}
           onBack={closeCoachAthletePlan}
           onOpenChat={openCoachChat} // ✅
         />
@@ -282,7 +300,10 @@ export default function HomeScreen() {
       return (
         <CoachWorkoutsTab
           onAddToPlan={onAddToAthletePlan}
-          onPickDone={() => setCoachWorkoutPage("athletePlan")}
+          onPickDone={() => {
+            setPlanPickerContext(null);
+            setCoachWorkoutPage("athletePlan");
+          }}
         />
       );
     }
