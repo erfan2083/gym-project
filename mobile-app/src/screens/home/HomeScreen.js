@@ -32,7 +32,15 @@ export default function HomeScreen() {
   const profile = useProfileStore((s) => s.profile);
   const role = profile?.role; // "coach" یا "client"
 
+  // ✅ شناسه کاربر فعلی
+  const currentUserId = useMemo(() => {
+    return profile?.id || profile?._id || profile?.userId || null;
+  }, [profile]);
+
   const [clientChatVisible, setClientChatVisible] = useState(false);
+
+  // ✅ اطلاعات مربی کاربر (برای چت)
+  const [userTrainerInfo, setUserTrainerInfo] = useState(null);
 
   const coachDisplayName = useMemo(() => {
     const n = profile?.name || profile?.username || "";
@@ -157,11 +165,23 @@ export default function HomeScreen() {
     setChatAthlete(null);
   };
 
+  // ✅ باز کردن چت برای کاربر
+  const openClientChat = () => {
+    // ✅ برای چت کاربر، باید اطلاعات مربی رو پاس بدیم
+    // فعلاً از profile استفاده می‌کنیم (بعداً می‌تونی از API بگیری)
+    setUserTrainerInfo({
+      id: profile?.trainerId || 5, // ✅ شناسه مربی کاربر - این باید از جایی بیاد
+      name: profile?.trainerName || "مربی من",
+    });
+    setClientChatVisible(true);
+  };
+
   const effectiveTab = tabHighlight || activeTab;
 
   const switchTab = (t) => {
     // اگر چت باز بود و کاربر روی تب‌ها زد، چت بسته شود
     if (chatVisible) closeCoachChat();
+    if (clientChatVisible) setClientChatVisible(false);
     setTabHighlight(null);
     setActiveTab(t);
   };
@@ -331,14 +351,18 @@ export default function HomeScreen() {
             <CoachAthletePlanScreen
               athlete={profile}
               readOnly
+              // ✅ مهم: شناسه کاربر رو پاس بده
+              currentUserId={currentUserId}
               // چون تب است، back را بی‌اثر یا برگردان به home tab
               onBack={() => setActiveTab("home")}
-              onOpenChat={() => setClientChatVisible(true)}
+              onOpenChat={openClientChat}
             />
 
+            {/* ✅ چت کاربر با مربی */}
             <CoachChatOverlay
               visible={clientChatVisible}
-              athlete={profile}
+              // ✅ باید اطلاعات مربی باشه، نه خود کاربر
+              athlete={userTrainerInfo}
               onClose={() => setClientChatVisible(false)}
               bottomOffset={ms(120)}
               meSender="athlete" // ✅ کلیدی‌ترین تغییر برای اینکه UI چت در user به‌هم نریزد
