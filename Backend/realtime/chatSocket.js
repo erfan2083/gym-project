@@ -1,7 +1,6 @@
 import pool from "../db/index.js";
-import { io } from "../server.js";
 
-export function setupChatSocket() {
+export function setupChatSocket(io) {
   io.on("connection", (socket) => {
     const userId = socket.user.id;
 
@@ -40,7 +39,7 @@ export function setupChatSocket() {
     });
 
     socket.on("disconnect", () => {
-      // optional logging
+      console.log(`User ${userId} disconnected from chat`);
     });
   });
 }

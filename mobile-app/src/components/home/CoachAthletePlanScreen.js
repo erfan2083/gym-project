@@ -65,6 +65,7 @@ export default function CoachAthletePlanScreen({
   onOpenChat,
   readOnly = false,
   onNavigateToWorkouts,
+  currentUserId = null, // ✅ اضافه شد - برای حالت کاربر
 }) {
   // ✅ State management
   const [planByDay, setPlanByDay] = useState({});
@@ -77,8 +78,13 @@ export default function CoachAthletePlanScreen({
   // ✅ ref برای نگه داشتن روز انتخاب شده (بدون re-render)
   const selectedDayRef = useRef(null);
 
-  // ✅ شناسه شاگرد
+  // ✅ شناسه شاگرد - برای کاربر از currentUserId استفاده کن
   const traineeId = useMemo(() => {
+    // ✅ اگر readOnly هست و currentUserId داریم، از اون استفاده کن
+    if (readOnly && currentUserId) {
+      return currentUserId;
+    }
+    // ✅ در غیر این صورت از athlete
     return (
       athlete?.id ||
       athlete?._id ||
@@ -87,7 +93,7 @@ export default function CoachAthletePlanScreen({
       athlete?.traineeId ||
       null
     );
-  }, [athlete]);
+  }, [athlete, readOnly, currentUserId]);
 
   const athleteName = useMemo(() => {
     const full =
@@ -122,6 +128,8 @@ export default function CoachAthletePlanScreen({
     setLoading(true);
 
     try {
+      console.log("📥 Fetching schedule for trainee:", traineeId, "readOnly:", readOnly);
+
       const data = await getWeekScheduleForCoach({
         traineeId,
         weekStart,
@@ -145,17 +153,17 @@ export default function CoachAthletePlanScreen({
             schedule[dayInfo.key].push({
               planItemId: item.item_id ?? item.planItemId ?? item.id ?? item._id,
               id: item.workout_id ?? item.workoutId ?? item.id,
-              name: item.workout_title ??  item.title ?? item.name ?? "نام حرکت",
+              name: item.workout_title ?? item.title ?? item.name ?? "نام حرکت",
               sets: item.sets_count ?? item.sets ?? 0,
               reps: item.reps_count ?? item.reps ?? 0,
               notes: item.notes || "",
               media: (item.workout_video_url ?? item.video_url)
-                     ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
-                      : null,
+                ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
+                : null,
               exercise: {
                 media: (item.workout_video_url ?? item.video_url)
-                       ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
-                       : null,
+                  ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
+                  : null,
               },
             });
           }
@@ -184,8 +192,9 @@ export default function CoachAthletePlanScreen({
       }
 
       setPlanByDay(schedule);
+      console.log("✅ Schedule loaded:", Object.keys(schedule).map(k => `${k}: ${schedule[k].length}`));
     } catch (error) {
-      console.error("Error fetching week schedule:", error);
+      console.error("❌ Error fetching week schedule:", error);
       const emptySchedule = {};
       DAYS.forEach((d) => {
         emptySchedule[d.key] = [];
@@ -194,14 +203,12 @@ export default function CoachAthletePlanScreen({
     } finally {
       setLoading(false);
     }
-  }, [traineeId, weekStart]);
+  }, [traineeId, weekStart, readOnly]);
 
-  // ✅ Load schedule on mount
+  // ✅ Load schedule on mount - همیشه لود کن
   useEffect(() => {
-    if (!readOnly) {
-      fetchWeekSchedule();
-    }
-  }, [fetchWeekSchedule, readOnly]);
+    fetchWeekSchedule();
+  }, [fetchWeekSchedule]);
 
   // ✅ ─────────────────────────────────────────────
   // ✅ Add exercise to schedule - با dayKey پارامتر
@@ -210,7 +217,7 @@ export default function CoachAthletePlanScreen({
     async (exerciseData, dayKey) => {
       // ✅ اول از پارامتر استفاده کن، بعد از ref
       const targetDay = dayKey || selectedDayRef.current;
-      
+
       console.log("Adding exercise to day:", targetDay, exerciseData);
 
       if (!traineeId) {
@@ -288,11 +295,12 @@ export default function CoachAthletePlanScreen({
         return;
       }
 
+      // ✅ تأیید حذف
       Alert.alert(
         "حذف تمرین",
         `آیا از حذف "${item.name}" مطمئن هستید؟`,
         [
-          { text: "لغو", style: "cancel" },
+          { text: "انصراف", style: "cancel" },
           {
             text: "حذف",
             style: "destructive",
@@ -300,17 +308,23 @@ export default function CoachAthletePlanScreen({
               try {
                 setDeletingItemId(item.planItemId);
 
-                await deleteScheduleItem({ id: item.planItemId });
+                await deleteScheduleItem({
+                  traineeId,
+                  itemId: item.planItemId,
+                });
 
+                // ✅ بروزرسانی state محلی
                 setPlanByDay((prev) => {
                   const newPlan = { ...prev };
                   newPlan[dayKey] = (newPlan[dayKey] || []).filter(
-                    (it) => it.planItemId !== item.planItemId
+                    (i) => i.planItemId !== item.planItemId
                   );
                   return newPlan;
                 });
+
+                console.log("✅ Item deleted:", item.planItemId);
               } catch (error) {
-                console.error("Error deleting schedule item:", error);
+                console.error("Error deleting item:", error);
                 Alert.alert("خطا", "مشکلی در حذف تمرین رخ داد");
               } finally {
                 setDeletingItemId(null);
@@ -320,42 +334,17 @@ export default function CoachAthletePlanScreen({
         ]
       );
     },
-    []
+    [traineeId]
   );
 
-  // ✅ Handler for add button
-  const handleAddForDay = (dayKey) => {
-    console.log("Add for day:", dayKey);
-    
-    // ✅ ذخیره روز در ref
-    selectedDayRef.current = dayKey;
-
-    if (onNavigateToWorkouts) {
-      onNavigateToWorkouts({
-        dayKey,
-        traineeId,
-        weekStart,
-        // ✅ پاس دادن dayKey به callback
-        onAddExercise: (exerciseData) => handleAddExerciseToDay(exerciseData, dayKey),
-      });
-      return;
-    }
-
-    if (onPressAddForDay) return onPressAddForDay(dayKey);
-    if (onAddExercise) return onAddExercise(dayKey);
-  };
-
-  // ---------- Preview Modal ----------
+  // ✅ ─────────────────────────────────────────────
+  // ✅ Preview Modal State
+  // ✅ ─────────────────────────────────────────────
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
 
   const openPreview = (item) => {
-    const m = item?.media || item?.exercise?.media || null;
-    if (!m?.uri) {
-      Alert.alert("پیش‌نمایش", "برای این تمرین رسانه‌ای ثبت نشده است.");
-      return;
-    }
-    setPreviewItem({ ...item, media: m });
+    setPreviewItem(item);
     setPreviewVisible(true);
   };
 
@@ -364,14 +353,27 @@ export default function CoachAthletePlanScreen({
     setPreviewItem(null);
   };
 
-  const PreviewVideo = safeGetVideo()?.Video;
+  // ✅ Video component
+  const avModule = safeGetVideo();
+  const PreviewVideo = avModule?.Video || null;
+
+  // ✅ Handle add button press
+  const handlePressAdd = (dayKey) => {
+    selectedDayRef.current = dayKey;
+
+    if (onPressAddForDay) {
+      onPressAddForDay(dayKey, handleAddExerciseToDay);
+    } else if (onNavigateToWorkouts) {
+      onNavigateToWorkouts(dayKey, handleAddExerciseToDay);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header Row */}
       <View style={styles.headerRow}>
-        <Pressable onPress={onBack} hitSlop={10} style={styles.chatBtn}>
-          <Ionicons name="arrow-back" size={ms(22)} color={COLORS.primary} />
+        <Pressable onPress={onBack} hitSlop={10} style={styles.leftBtn}>
+          <Ionicons name="arrow-forward" size={ms(24)} color={COLORS.primary} />
         </Pressable>
 
         <Text style={styles.headerName} numberOfLines={1}>
@@ -385,26 +387,27 @@ export default function CoachAthletePlanScreen({
               style={styles.avatarImage}
             />
           ) : (
-            <FontAwesome5 name="user-alt" size={ms(20)} color={COLORS.primary} />
+            <FontAwesome5 name="user-alt" size={ms(24)} color={COLORS.primary} />
           )}
         </View>
       </View>
 
-      {/* Line + Center Chat Icon */}
+      {/* Header Line + Chat Button */}
       <View style={styles.headerLineWrap}>
         <View style={styles.headerLine} />
-        <Pressable
-          onPress={onOpenChat}
-          hitSlop={10}
-          style={styles.centerChatBtn}
-        >
-          <Entypo name="chat" size={40} color={COLORS.primary} />
-        </Pressable>
+        {onOpenChat && (
+          <Pressable style={styles.centerChatBtn} onPress={onOpenChat}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={ms(24)}
+              color={COLORS.primary}
+            />
+          </Pressable>
+        )}
       </View>
 
-      <Text style={styles.subText} numberOfLines={1}>
-        {subscriptionName}
-      </Text>
+      {/* Subscription Name */}
+      <Text style={styles.subText}>{subscriptionName}</Text>
 
       {/* Loading State */}
       {loading ? (
@@ -413,83 +416,79 @@ export default function CoachAthletePlanScreen({
           <Text style={styles.loadingText}>در حال بارگذاری...</Text>
         </View>
       ) : (
-        /* Days */
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.daysWrap}
         >
-          {DAYS.map((d) => {
-            const items = planByDay?.[d.key] || [];
+          {DAYS.map((day) => {
+            const items = planByDay[day.key] || [];
             const hasItems = items.length > 0;
 
             return (
-              <View key={d.key} style={styles.dayCard}>
-                <Text style={styles.dayTitle}>{d.label}</Text>
+              <View key={day.key} style={styles.dayCard}>
+                <Text style={styles.dayTitle}>{day.label}</Text>
 
+                {/* Items */}
                 {hasItems && (
                   <View style={styles.itemsWrap}>
-                    {items.map((it, idx) => {
-                      const isDeleting = deletingItemId === it?.planItemId;
+                    {items.map((item, index) => {
+                      const isDeleting = deletingItemId === item.planItemId;
 
                       return (
                         <View
-                          key={
-                            it?.planItemId
-                              ? String(it.planItemId)
-                              : `${d.key}-${idx}`
-                          }
+                          key={item.planItemId || index}
                           style={[
                             styles.itemRow,
                             isDeleting && styles.itemRowDeleting,
                           ]}
                         >
-                          {/* ✅ دکمه حذف (فقط برای مربی) */}
+                          {/* Delete Button - فقط برای مربی */}
                           {!readOnly && (
                             <Pressable
                               style={styles.deleteBtn}
-                              hitSlop={10}
-                              onPress={() => handleDeleteItem(d.key, it)}
+                              onPress={() => handleDeleteItem(day.key, item)}
                               disabled={isDeleting}
                             >
                               {isDeleting ? (
-                                <ActivityIndicator size="small" color={COLORS.error} />
+                                <ActivityIndicator size="small" color={COLORS.danger} />
                               ) : (
                                 <MaterialIcons
                                   name="delete-outline"
-                                  size={ms(18)}
-                                  color={COLORS.error}
+                                  size={ms(20)}
+                                  color={COLORS.danger}
                                 />
                               )}
                             </Pressable>
                           )}
 
+                          {/* Film Chip */}
                           <Pressable
                             style={styles.filmChip}
-                            hitSlop={10}
-                            onPress={() => openPreview(it)}
+                            onPress={() => openPreview(item)}
                           >
-                            <Text style={styles.filmText}>فیلم</Text>
+                            <Entypo
+                              name="video"
+                              size={ms(18)}
+                              color={COLORS.primary}
+                            />
                           </Pressable>
 
+                          {/* Item Info */}
                           <View style={styles.itemMid}>
                             <Text style={styles.itemName} numberOfLines={1}>
-                              {it?.name || "نام حرکت"}
+                              {item.name}
                             </Text>
-
                             <View style={styles.metaRow}>
-                              <Text style={styles.metaText}>تعداد ست:</Text>
-                              <Text style={styles.metaText}>
-                                {String(it?.sets ?? "")}
-                              </Text>
-
-                              <Text
-                                style={[styles.metaText, { marginRight: ms(12) }]}
-                              >
-                                تعداد تکرار:
-                              </Text>
-                              <Text style={styles.metaText}>
-                                {String(it?.reps ?? "")}
-                              </Text>
+                              {item.sets > 0 && (
+                                <Text style={styles.metaText}>
+                                  {item.sets} ست
+                                </Text>
+                              )}
+                              {item.reps > 0 && (
+                                <Text style={styles.metaText}>
+                                  {item.reps} تکرار
+                                </Text>
+                              )}
                             </View>
                           </View>
                         </View>
@@ -498,19 +497,18 @@ export default function CoachAthletePlanScreen({
                   </View>
                 )}
 
-                {/* ✅ فقط مربی */}
+                {/* Add Button - فقط برای مربی */}
                 {!readOnly && (
                   <Pressable
-                    style={[styles.addRow, !hasItems && styles.addRowCentered]}
-                    onPress={() => handleAddForDay(d.key)}
-                    hitSlop={10}
+                    style={[styles.addRow, hasItems && styles.addRowCentered]}
+                    onPress={() => handlePressAdd(day.key)}
                   >
                     <Ionicons
-                      name="add-circle-outline"
-                      size={ms(18)}
+                      name="add-circle"
+                      size={ms(28)}
                       color={COLORS.primary}
                     />
-                    <Text style={styles.addText}>افزودن تمرین جدید</Text>
+                    <Text style={styles.addText}>اضافه کنید</Text>
                   </Pressable>
                 )}
 

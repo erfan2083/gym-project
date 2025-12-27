@@ -43,3 +43,35 @@ export async function getChatHistory(req, res) {
     res.status(500).json({ message: "Server error" });
   }
 }
+
+
+// Add to Backend/controllers/chatController.js
+export async function sendMessage(req, res) {
+  const senderId = req.user?.id;
+  const { receiverId, content, audioUrl } = req.body;
+
+  if (!senderId) return res.status(401).json({ message: "Unauthorized" });
+  if (!receiverId) return res.status(400).json({ message: "receiverId required" });
+  if (!content && !audioUrl) return res.status(400).json({ message: "content or audioUrl required" });
+
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO "gym-project".chatmessage(sender_id, receiver_id, content, audio_url)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, sender_id, receiver_id, content, audio_url, sent_at;
+      `,
+      [senderId, receiverId, content || null, audioUrl || null]
+    );
+
+    const message = rows[0];
+
+    // Emit via socket if available
+    // This requires access to io instance
+
+    res.status(201).json(message);
+  } catch (e) {
+    console.error("sendMessage error:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+}

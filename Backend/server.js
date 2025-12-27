@@ -5,8 +5,6 @@ import app from "./app.js";
 import jwt from "jsonwebtoken";
 import { setupChatSocket } from "./realtime/chatSocket.js";
 
-
-
 const PORT = process.env.PORT || 3000;
 
 app.get("/ping", (req, res) => {
@@ -43,11 +41,10 @@ io.use((socket, next) => {
   }
 });
 
-setupChatSocket();
+// ✅ Pass io to setupChatSocket to avoid circular dependency
+setupChatSocket(io);
 
 export { io };
-
-
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
