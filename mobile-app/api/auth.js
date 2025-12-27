@@ -21,7 +21,7 @@ export async function signupComplete({ signup_token, full_name, password, role }
 }
 
 export async function login({ phone, password }) {
-  const res = await api.post('api/auth/login', {
+  const res = await api.post('/api/auth/login', {
     phone: phone, password
   });
   const { token, user } = res.data;
@@ -30,17 +30,17 @@ export async function login({ phone, password }) {
 }
 
 export async function resetStart(phone) {
-  const { data } = await api.post('api/auth/password/forgot/start', { phone });
+  const { data } = await api.post('/api/auth/password/forgot/start', { phone });
   return data; // { otp_id }
 }
 
 export async function resetVerify(otp_id, code) {
-  const { data } = await api.post('api/auth/password/forgot/verify', { otp_id, code });
+  const { data } = await api.post('/api/auth/password/forgot/verify', { otp_id, code });
   return data; // { reset_token }
 }
 
 export async function resetComplete({ reset_token, password }) {
-  const { data } = await api.post('api/auth/password/forgot/complete', { reset_token, password });
+  const { data } = await api.post('/api/auth/password/forgot/complete', { reset_token, password });
   return data; // { message }
 }
 
