@@ -1,5 +1,5 @@
 // src/screens/home/HomeScreen.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
@@ -9,6 +9,7 @@ import CoachWorkoutsTab from "../../components/home/CoachWorkoutsTab";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
+
 import ProfileTab from "../../components/home/ProfileTab";
 import HomeTab from "../../components/home/HomeTab";
 import { useProfileStore } from "../../store/profileStore";
@@ -18,31 +19,137 @@ import TrainerPublicProfile from "../../components/home/TrainerPublicProfile";
 import SportsCategoriesScreen from "../../components/home/SportsCategoriesScreen";
 import SportTrainersScreen from "../../components/home/SportTrainersScreen";
 
-// ✅ NEW
+// ✅ Coach
 import CoachHomeTab from "../../components/home/CoachHomeTab";
+import CoachAthletePlanScreen from "../../components/home/CoachAthletePlanScreen";
+import CoachChatOverlay from "../../components/home/CoachChatOverlay";
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const route = useRoute();
 
   const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
-  const role = useProfileStore((s) => s.profile?.role);
+  const profile = useProfileStore((s) => s.profile);
+  const role = profile?.role; // "coach" یا "client"
 
+  const [clientChatVisible, setClientChatVisible] = useState(false);
+
+  const coachDisplayName = useMemo(() => {
+    const n = profile?.name || profile?.username || "";
+    return String(n).trim() || "نام مربی";
+  }, [profile?.name, profile?.username]);
+
+  // ============ Client Home pages ============
   const [homePage, setHomePage] = useState("main"); // "main" | "sports" | "sportTrainers" | "topTrainers" | "trainerPublic"
   const [selectedSport, setSelectedSport] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
-
-  // مسیر برگشت از پروفایل مربی (main / topTrainers / sportTrainers)
   const [trainerPublicBackTo, setTrainerPublicBackTo] = useState("main");
 
-  // تابع واحد برای باز کردن پروفایل مربی داخل HomeScreen (برای حفظ bottom bar)
   const openTrainerPublic = (payload, backTo = "main") => {
     setSelectedTrainer(payload);
     setTrainerPublicBackTo(backTo);
     setHomePage("trainerPublic");
   };
 
-  // اگر از بیرون با params وارد HomeScreen شویم (برای ریدایرکت از TrainerPublicProfile مستقل)
+  // ============ Coach flow (Workout tab screens) ============
+  const [coachWorkoutPage, setCoachWorkoutPage] = useState("list"); // "list" | "athletePlan" | "picker"
+  const [selectedAthlete, setSelectedAthlete] = useState(null);
+  const [selectedPlanDay, setSelectedPlanDay] = useState(null);
+
+  const [plansByAthlete, setPlansByAthlete] = useState({}); // { [athleteId]: { sat:[], sun:[], ... } }
+
+  const selectedAthleteId = useMemo(() => {
+    const id = selectedAthlete?.id ?? selectedAthlete?._id ?? null;
+    return id ? String(id) : null;
+  }, [selectedAthlete]);
+
+  const planByDayForSelected = useMemo(() => {
+    if (!selectedAthleteId) return {};
+    return plansByAthlete?.[selectedAthleteId] || {};
+  }, [plansByAthlete, selectedAthleteId]);
+
+  // Coach: open athlete plan INSIDE workout tab
+  const openCoachAthletePlan = (athlete) => {
+    setSelectedAthlete(athlete || null);
+    setCoachWorkoutPage("athletePlan");
+    setActiveTab("workout");
+  };
+
+  const onAddExerciseForDay = (dayKey) => {
+    setSelectedPlanDay(dayKey);
+    setCoachWorkoutPage("picker");
+    setActiveTab("workout");
+  };
+
+  // ✅ CoachWorkoutsTab خروجی:
+  // payload: { exerciseId, name, media, sets, reps }
+  const onAddToAthletePlan = (payload) => {
+    if (!selectedAthleteId || !selectedPlanDay) return;
+
+    const item = {
+      planItemId: `pi-${Date.now()}`,
+      name: payload?.name || "نام حرکت",
+      sets: payload?.sets,
+      reps: payload?.reps,
+      media: payload?.media || null,
+      exerciseId: payload?.exerciseId || null,
+    };
+
+    setPlansByAthlete((prev) => {
+      const currentAth = prev?.[selectedAthleteId] || {};
+      const currentDayList = Array.isArray(currentAth?.[selectedPlanDay])
+        ? currentAth[selectedPlanDay]
+        : [];
+      return {
+        ...(prev || {}),
+        [selectedAthleteId]: {
+          ...currentAth,
+          [selectedPlanDay]: [item, ...currentDayList],
+        },
+      };
+    });
+
+    setSelectedPlanDay(null);
+    setCoachWorkoutPage("athletePlan");
+  };
+
+  const closeCoachAthletePlan = () => {
+    setCoachWorkoutPage("list");
+    setSelectedAthlete(null);
+    setSelectedPlanDay(null);
+    setActiveTab("home");
+  };
+
+  // ============ Chat Overlay (۹۰٪ + فقط هایلایت تب Profile) ============
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatAthlete, setChatAthlete] = useState(null);
+
+  // این فقط برای رنگِ BottomTab است، نه تغییر واقعی صفحه
+  const [tabHighlight, setTabHighlight] = useState(null); // "home" | "workout" | "profile" | null
+
+  const openCoachChat = () => {
+    // پشت صحنه باید همون صفحه‌ی Plan بمونه؛ فقط تب Profile هایلایت بشه
+    setChatAthlete(selectedAthlete || null);
+    setTabHighlight("profile");
+    setChatVisible(true);
+  };
+
+  const closeCoachChat = () => {
+    setChatVisible(false);
+    setTabHighlight(null);
+    setChatAthlete(null);
+  };
+
+  const effectiveTab = tabHighlight || activeTab;
+
+  const switchTab = (t) => {
+    // اگر چت باز بود و کاربر روی تب‌ها زد، چت بسته شود
+    if (chatVisible) closeCoachChat();
+    setTabHighlight(null);
+    setActiveTab(t);
+  };
+
+  // اگر از بیرون با params وارد HomeScreen شویم
   useEffect(() => {
     const params = route?.params || {};
 
@@ -56,14 +163,12 @@ export default function HomeScreen() {
 
     const openPayload = params?.openTrainerPublic;
     if (openPayload?.trainerId) {
-      // همیشه داخل تب home باز شود تا bottom tab فعال و درست باشد
       setActiveTab("home");
       setSelectedTrainer(openPayload);
       setHomePage("trainerPublic");
       setTrainerPublicBackTo(params?.backTo || "main");
     }
 
-    // پاک کردن params برای جلوگیری از اجرای تکراری
     if (
       params?.initialTab !== undefined ||
       params?.openTrainerPublic !== undefined ||
@@ -150,19 +255,39 @@ export default function HomeScreen() {
     );
   };
 
-  // ✅ NEW: coach home renderer
   const renderHomeCoach = () => {
-    // فعلاً فقط UI صفحه Home مربی طبق فیگما
-    // برای آینده اگر صفحه‌های تو در تو خواستی، همین‌جا مشابه renderHomeClient گسترش می‌دهیم
     return (
       <CoachHomeTab
         onSelectAthlete={(athlete) => {
-          // فعلاً هیچ navigation جدیدی نمی‌زنیم تا مطابق درخواستت UI-only باشد
-          // بعداً می‌توانی اینجا مثلاً بروی صفحه AthleteProfile داخل همین HomeScreen
-          console.log("Selected athlete:", athlete?.id);
+          openCoachAthletePlan(athlete);
         }}
       />
     );
+  };
+
+  const renderCoachWorkout = () => {
+    if (coachWorkoutPage === "athletePlan") {
+      return (
+        <CoachAthletePlanScreen
+          athlete={selectedAthlete}
+          planByDay={planByDayForSelected}
+          onPressAddForDay={onAddExerciseForDay}
+          onBack={closeCoachAthletePlan}
+          onOpenChat={openCoachChat} // ✅
+        />
+      );
+    }
+
+    if (coachWorkoutPage === "picker") {
+      return (
+        <CoachWorkoutsTab
+          onAddToPlan={onAddToAthletePlan}
+          onPickDone={() => setCoachWorkoutPage("athletePlan")}
+        />
+      );
+    }
+
+    return <CoachWorkoutsTab />;
   };
 
   const renderContent = () => {
@@ -178,14 +303,28 @@ export default function HomeScreen() {
     }
 
     if (activeTab === "workout") {
-      if (role === "coach") return <CoachWorkoutsTab />;
+      if (role === "coach") return renderCoachWorkout();
+      if (role === "client") {
+        return (
+          <>
+            <CoachAthletePlanScreen
+              athlete={profile}
+              readOnly
+              // چون تب است، back را بی‌اثر یا برگردان به home tab
+              onBack={() => setActiveTab("home")}
+              onOpenChat={() => setClientChatVisible(true)}
+            />
 
-      // کلاینت (فعلاً همون placeholder)
-      return (
-        <View style={styles.centerContent}>
-          <Text style={styles.contentText}>تمرینات کاربر</Text>
-        </View>
-      );
+            <CoachChatOverlay
+              visible={clientChatVisible}
+              athlete={profile}
+              onClose={() => setClientChatVisible(false)}
+              bottomOffset={ms(120)}
+              meSender="athlete" // ✅ کلیدی‌ترین تغییر برای اینکه UI چت در user به‌هم نریزد
+            />
+          </>
+        );
+      }
     }
 
     if (activeTab === "profile") {
@@ -206,14 +345,25 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <View style={styles.content}>{renderContent()}</View>
 
+        {/* ✅ Chat Overlay (۹۰٪ + BottomTab دیده می‌ماند) */}
+        {role === "coach" && (
+          <CoachChatOverlay
+            visible={chatVisible}
+            athlete={chatAthlete || selectedAthlete}
+            onClose={closeCoachChat}
+            coachName={coachDisplayName}
+            bottomOffset={ms(120)}
+          />
+        )}
+
         <View style={styles.bottomBarWrapper}>
           <View style={styles.bottomBar}>
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "workout" && styles.bottomTabItemActive,
+                effectiveTab === "workout" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("workout")}
+              onPress={() => switchTab("workout")}
             >
               <DumbbellIcon size={40} />
             </Pressable>
@@ -221,9 +371,9 @@ export default function HomeScreen() {
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "home" && styles.bottomTabItemActive,
+                effectiveTab === "home" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("home")}
+              onPress={() => switchTab("home")}
             >
               <HomeIcon size={40} />
             </Pressable>
@@ -231,9 +381,9 @@ export default function HomeScreen() {
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "profile" && styles.bottomTabItemActive,
+                effectiveTab === "profile" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("profile")}
+              onPress={() => switchTab("profile")}
             >
               <FontAwesome5
                 name="user-alt"
