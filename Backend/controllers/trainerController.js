@@ -654,3 +654,325 @@ export const getTopTrainers = async (req, res) => {
     });
   }
 };
+
+
+
+export const getTrainerProfile = async (req, res) => {
+  try {
+    const trainerId = req.params.trainerId;
+    if (!trainerId) {
+      return res.status(401).json({ message: "احراز هویت انجام نشده است" });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM "gym-project".get_trainer_public_profile($1)',
+      [trainerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "پروفایل مربی برای این کاربر یافت نشد" });
+    }
+
+    const row = result.rows[0];
+
+    return res.json({
+      userId: trainerId,
+      fullName: row.full_name,
+      avatarUrl: row.avatar_url,
+      username: row.username,
+      gender: row.gender,
+      birthDate: row.date_of_birth,
+      province: row.province,
+      city: row.city,
+      bio: row.bio,
+      certificateImageUrl: row.certificate_image_url,
+      contactPhone: row.contact_phone,
+      telegramUrl: row.telegram_url,
+      instagramUrl: row.instagram_url,
+      specialties: row.specialties || [],
+    });
+  } catch (err) {
+    console.error("getMyTrainerProfile error:", err);
+    return res
+      .status(500)
+      .json({ message: "خطای سرور در گرفتن پروفایل مربی" });
+  }
+};
+
+
+
+// GET /api/trainer/specialties/with-count
+export const listSpecialtiesWithCount = async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_specialties_with_trainer_count()'
+    );
+    return res.json(rows);
+  } catch (err) {
+    console.error("listSpecialtiesWithCount error:", err);
+    return res.status(500).json({ message: "خطای سرور در دریافت رشته‌ها" });
+  }
+};
+
+// GET /api/trainer/specialties/:specialtyId/trainers
+export const getTrainersBySpecialty = async (req, res) => {
+  const { specialtyId } = req.params;
+
+  if (!specialtyId) {
+    return res.status(400).json({ message: "specialtyId الزامی است" });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_trainers_by_specialty($1)',
+      [Number(specialtyId)]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("getTrainersBySpecialty error:", err);
+    return res.status(500).json({ message: "خطای سرور در دریافت مربی‌ها" });
+  }
+};
+
+
+
+// controllers/trainerController.js
+export const getMyAthletes = async (req, res) => {
+  const trainerId = req.user?.id;
+  if (!trainerId) return res.status(401).json({ message: "Unauthorized" });
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM "gym-project".get_coach_athletes($1)',
+      [trainerId]
+    );
+
+    // نرمالایز خروجی برای فرانت
+    const mapped = rows.map((r) => ({
+      id: String(r.trainee_id),
+      name: r.full_name || "کاربر",
+      avatarUrl: r.avatar_url || null,
+      activeSubscriptionsCount: Number(r.active_subscriptions_count || 0),
+      latestEndDate: r.latest_end_date || null,
+    }));
+
+    return res.json(mapped);
+  } catch (e) {
+    console.error("getMyAthletes error:", e);
+    return res.status(500).json({ message: "خطا در دریافت شاگردها" });
+  }
+};
+
+
+// ─── Upload middleware for workout video (memory + Cloudinary) ────────────
+const workoutVideoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 60 * 1024 * 1024, // 60MB (اگر خواستی بیشتر/کمترش کن)
+  },
+  fileFilter(req, file, cb) {
+    // فقط ویدیو
+    if (file.mimetype && file.mimetype.startsWith("video/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("فقط فایل ویدیویی مجاز است"));
+    }
+  },
+});
+
+// در روتر استفاده می‌کنیم
+export const uploadWorkoutVideo = workoutVideoUpload.single("video");
+
+
+
+
+// ✅ GET /api/trainer/schedule/week?traineeId=&weekStart=
+export const getWeekScheduleForCoach = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const coachId = req.user.id;
+  const { traineeId, weekStart } = req.query;
+
+  if (!traineeId || !weekStart) {
+    return res.status(400).json({ message: "traineeId و weekStart الزامی است" });
+  }
+
+  try {
+    // IMPORTANT: امضای DB function ممکنه فرق کنه؛ این خط رو مطابق DB تنظیم کن
+    const { rows } = await pool.query(
+      `SELECT * FROM "gym-project".get_week_schedule_for_coach($1,$2,$3)`,
+      [coachId, Number(traineeId), weekStart]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("getWeekScheduleForCoach error:", err);
+    return res.status(500).json({ message: "خطا در دریافت برنامه هفته" });
+  }
+};
+
+
+// ✅ POST /api/trainer/schedule/item
+// body نمونه:
+// { traineeId, weekStart, dayOfWeek, workoutId, sets, reps, notes }
+export const addScheduleItem = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const coachId = req.user.id;
+  const { traineeId, weekStart, dayOfWeek, workoutId, sets, reps, notes } = req.body;
+
+  if (
+    !traineeId ||
+    !weekStart ||
+    dayOfWeek === undefined ||
+    dayOfWeek === null ||
+    !workoutId
+  ) {
+    return res.status(400).json({
+      message: "traineeId, weekStart, dayOfWeek, workoutId الزامی است",
+    });
+  }
+
+  const day = Number(dayOfWeek);
+  if (Number.isNaN(day) || day < 0 || day > 6) {
+    return res.status(400).json({ message: "dayOfWeek باید بین 0 تا 6 باشد" });
+  }
+
+  try {
+    // IMPORTANT: امضای DB function ممکنه فرق کنه؛ این خط رو مطابق DB تنظیم کن
+    // پیشنهاد: خروجی row جدید (scheduleworkout.id) برگردون
+    const { rows } = await pool.query(
+      `SELECT * FROM "gym-project".add_workout_to_week_day($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        coachId,
+        Number(traineeId),
+        weekStart,
+        day,
+        Number(workoutId),
+        sets !== undefined ? Number(sets) : null,
+        reps !== undefined ? Number(reps) : null,
+        notes ?? null,
+      ]
+    );
+
+    // اگر فانکشن چیزی برگردوند
+    return res.status(201).json(rows?.[0] ?? { message: "added" });
+  } catch (err) {
+    console.error("addScheduleItem error:", err);
+    return res.status(500).json({ message: "خطا در افزودن تمرین به برنامه" });
+  }
+};
+
+
+// ✅ DELETE /api/trainer/schedule/item/:id
+export const deleteScheduleItem = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const coachId = req.user.id;
+  const { id } = req.params;
+
+  if (!id) return res.status(400).json({ message: "id الزامی است" });
+
+  try {
+    // IMPORTANT: امضای DB procedure ممکنه فرق کنه؛ این خط رو مطابق DB تنظیم کن
+    await pool.query(
+      `CALL "gym-project".delete_schedule_workout_item($1,$2)`,
+      [coachId, Number(id)]
+    );
+
+    return res.json({ message: "deleted" });
+  } catch (err) {
+    console.error("deleteScheduleItem error:", err);
+    return res.status(500).json({ message: "خطا در حذف آیتم برنامه" });
+  }
+};
+
+
+// ✅ GET /api/trainer/workouts/library
+export const getWorkoutsLibrary = async (req, res) => {
+  if (!ensureCoach(req, res)) return;
+
+  const coachId = req.user.id;
+
+  try {
+    // IMPORTANT: امضای DB function ممکنه فرق کنه؛ این خط رو مطابق DB تنظیم کن
+    const { rows } = await pool.query(
+      `SELECT * FROM "gym-project".get_workouts_for_coach_library($1)`,
+      [coachId]
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("getWorkoutsLibrary error:", err);
+    return res.status(500).json({ message: "خطا در دریافت لیست تمرینات" });
+  }
+};
+
+
+// ✅ POST /api/trainer/workouts
+export const createMyWorkout = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    if (!userId) return res.status(401).json({ message: "احراز هویت انجام نشده است" });
+    if (role !== "coach") return res.status(403).json({ message: "Only coaches can create workouts" });
+
+    const { title, description } = req.body;
+
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ message: "title الزامی است" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "ویدیو الزامی است (field: video)" });
+    }
+
+    // Upload to Cloudinary (resource_type: video) - دقیقا مثل certificate با upload_stream
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            folder: "workouts",
+            resource_type: "video",
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        )
+        .end(req.file.buffer);
+    });
+
+    const videoUrl = uploadResult.secure_url;
+
+    const { rows } = await pool.query(
+      `
+      INSERT INTO "gym-project".workout (title, description, video_url, created_by)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, title, description, video_url, created_by;
+      `,
+      [String(title).trim(), description ?? null, videoUrl, userId]
+    );
+
+    return res.status(201).json({
+      message: "Workout created successfully",
+      workout: rows[0],
+    });
+  } catch (err) {
+    console.error("createMyWorkout error:", err);
+
+    const msg = err.message || "";
+    if (msg.includes("فقط فایل ویدیویی مجاز است")) {
+      return res.status(400).json({ message: msg });
+    }
+
+    return res.status(500).json({
+      message: "Server error while creating workout",
+      error: err.message,
+    });
+  }
+};
+

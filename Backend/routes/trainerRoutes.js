@@ -15,7 +15,16 @@ import {
   getMyPlans,
   getTrainerPlansPublic,
   getTopTrainers,
-  
+  getTrainerProfile,
+  listSpecialtiesWithCount,
+  getTrainersBySpecialty,
+  getMyAthletes,
+  getWeekScheduleForCoach,
+  addScheduleItem,
+  deleteScheduleItem,
+  getWorkoutsLibrary,
+  createMyWorkout,
+  uploadWorkoutVideo,
 } from "../controllers/trainerController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -63,5 +72,21 @@ trainerRouter.get("/:trainerId/plan", getTrainerPlansPublic);
 
 trainerRouter.get("/top-trainers", getTopTrainers);
 
+trainerRouter.get("/profile/:trainerId", getTrainerProfile);
+
+trainerRouter.get("/specialties/with-count", listSpecialtiesWithCount);
+trainerRouter.get("/specialties/:specialtyId/trainers", getTrainersBySpecialty);
+
+
+trainerRouter.get("/my-athletes", authMiddleware, getMyAthletes);
+
+
+trainerRouter.get("/schedule/week", authMiddleware, getWeekScheduleForCoach);
+trainerRouter.post("/schedule/item", authMiddleware, addScheduleItem);
+trainerRouter.delete("/schedule/item/:id", authMiddleware, deleteScheduleItem);
+
+// ✅ Workouts APIs (coach only)
+trainerRouter.get("/workouts/library", authMiddleware, getWorkoutsLibrary);
+trainerRouter.post("/workouts", authMiddleware, uploadWorkoutVideo, createMyWorkout);
 
 export default trainerRouter;

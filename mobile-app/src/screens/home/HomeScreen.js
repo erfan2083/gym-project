@@ -1,34 +1,321 @@
 // src/screens/home/HomeScreen.js
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 
+import { useNavigation, useRoute } from "@react-navigation/native";
+import CoachWorkoutsTab from "../../components/home/CoachWorkoutsTab";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import HomeIcon from "../../components/ui/Homeicon";
 import DumbbellIcon from "../../components/ui/Dumbbell";
+
 import ProfileTab from "../../components/home/ProfileTab";
 import HomeTab from "../../components/home/HomeTab";
 import { useProfileStore } from "../../store/profileStore";
+import TopTrainersScreen from "../../components/home/TopTrainersScreen";
+import TrainerPublicProfile from "../../components/home/TrainerPublicProfile";
+
+import SportsCategoriesScreen from "../../components/home/SportsCategoriesScreen";
+import SportTrainersScreen from "../../components/home/SportTrainersScreen";
+
+// ✅ Coach
+import CoachHomeTab from "../../components/home/CoachHomeTab";
+import CoachAthletePlanScreen from "../../components/home/CoachAthletePlanScreen";
+import CoachChatOverlay from "../../components/home/CoachChatOverlay";
 
 export default function HomeScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
+
   const [activeTab, setActiveTab] = useState("home"); // "home" | "workout" | "profile"
-  const role = useProfileStore((s) => s.profile?.role);
+  const profile = useProfileStore((s) => s.profile);
+  const role = profile?.role; // "coach" یا "client"
+
+  const [clientChatVisible, setClientChatVisible] = useState(false);
+
+  const coachDisplayName = useMemo(() => {
+    const n = profile?.name || profile?.username || "";
+    return String(n).trim() || "نام مربی";
+  }, [profile?.name, profile?.username]);
+
+  // ============ Client Home pages ============
+  const [homePage, setHomePage] = useState("main"); // "main" | "sports" | "sportTrainers" | "topTrainers" | "trainerPublic"
+  const [selectedSport, setSelectedSport] = useState(null);
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
+  const [trainerPublicBackTo, setTrainerPublicBackTo] = useState("main");
+
+  const openTrainerPublic = (payload, backTo = "main") => {
+    setSelectedTrainer(payload);
+    setTrainerPublicBackTo(backTo);
+    setHomePage("trainerPublic");
+  };
+
+  // ============ Coach flow (Workout tab screens) ============
+  const [coachWorkoutPage, setCoachWorkoutPage] = useState("list"); // "list" | "athletePlan" | "picker"
+  const [selectedAthlete, setSelectedAthlete] = useState(null);
+  const [selectedPlanDay, setSelectedPlanDay] = useState(null);
+  const [planPickerContext, setPlanPickerContext] = useState(null); // payload از CoachAthletePlanScreen
+
+  const [plansByAthlete, setPlansByAthlete] = useState({}); // { [athleteId]: { sat:[], sun:[], ... } }
+
+  const selectedAthleteId = useMemo(() => {
+    const id = selectedAthlete?.id ?? selectedAthlete?._id ?? null;
+    return id ? String(id) : null;
+  }, [selectedAthlete]);
+
+  const planByDayForSelected = useMemo(() => {
+    if (!selectedAthleteId) return {};
+    return plansByAthlete?.[selectedAthleteId] || {};
+  }, [plansByAthlete, selectedAthleteId]);
+
+  // Coach: open athlete plan INSIDE workout tab
+  const openCoachAthletePlan = (athlete) => {
+    setSelectedAthlete(athlete || null);
+    setCoachWorkoutPage("athletePlan");
+    setPlanPickerContext(null);
+    setActiveTab("workout");
+  };
+
+  const onAddExerciseForDay = (dayKey) => {
+    setSelectedPlanDay(dayKey);
+    setCoachWorkoutPage("picker");
+    setActiveTab("workout");
+  };
+
+  const onNavigateFromPlanToPicker = (payload) => {
+    setPlanPickerContext(payload || null);
+    setCoachWorkoutPage("picker");
+    setActiveTab("workout");
+  };
+
+  // ✅ CoachWorkoutsTab خروجی:
+  // payload: { exerciseId, name, media, sets, reps }
+  const onAddToAthletePlan = async (payload) => {
+    // اگر از CoachAthletePlanScreen آمده‌ایم، callback خودش را صدا بزنیم تا API را هم بزند
+    if (planPickerContext?.onAddExercise) {
+      await planPickerContext.onAddExercise(payload);
+      setPlanPickerContext(null);
+      setCoachWorkoutPage("athletePlan");
+      return;
+    }
+
+    if (!selectedAthleteId || !selectedPlanDay) return;
+
+    const item = {
+      planItemId: `pi-${Date.now()}`,
+      name: payload?.name || "نام حرکت",
+      sets: payload?.sets,
+      reps: payload?.reps,
+      media: payload?.media || null,
+      exerciseId: payload?.exerciseId || null,
+    };
+
+    setPlansByAthlete((prev) => {
+      const currentAth = prev?.[selectedAthleteId] || {};
+      const currentDayList = Array.isArray(currentAth?.[selectedPlanDay])
+        ? currentAth[selectedPlanDay]
+        : [];
+      return {
+        ...(prev || {}),
+        [selectedAthleteId]: {
+          ...currentAth,
+          [selectedPlanDay]: [item, ...currentDayList],
+        },
+      };
+    });
+
+    setSelectedPlanDay(null);
+    setCoachWorkoutPage("athletePlan");
+  };
+
+  const closeCoachAthletePlan = () => {
+    setCoachWorkoutPage("list");
+    setSelectedAthlete(null);
+    setSelectedPlanDay(null);
+    setPlanPickerContext(null);
+    setActiveTab("home");
+  };
+
+  // ============ Chat Overlay (۹۰٪ + فقط هایلایت تب Profile) ============
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatAthlete, setChatAthlete] = useState(null);
+
+  // این فقط برای رنگِ BottomTab است، نه تغییر واقعی صفحه
+  const [tabHighlight, setTabHighlight] = useState(null); // "home" | "workout" | "profile" | null
+
+  const openCoachChat = () => {
+    // پشت صحنه باید همون صفحه‌ی Plan بمونه؛ فقط تب Profile هایلایت بشه
+    setChatAthlete(selectedAthlete || null);
+    setTabHighlight("profile");
+    setChatVisible(true);
+  };
+
+  const closeCoachChat = () => {
+    setChatVisible(false);
+    setTabHighlight(null);
+    setChatAthlete(null);
+  };
+
+  const effectiveTab = tabHighlight || activeTab;
+
+  const switchTab = (t) => {
+    // اگر چت باز بود و کاربر روی تب‌ها زد، چت بسته شود
+    if (chatVisible) closeCoachChat();
+    setTabHighlight(null);
+    setActiveTab(t);
+  };
+
+  // اگر از بیرون با params وارد HomeScreen شویم
+  useEffect(() => {
+    const params = route?.params || {};
+
+    const initialTab = params?.initialTab;
+    if (initialTab && ["home", "workout", "profile"].includes(initialTab)) {
+      setActiveTab(initialTab);
+      setHomePage("main");
+      setSelectedSport(null);
+      setSelectedTrainer(null);
+    }
+
+    const openPayload = params?.openTrainerPublic;
+    if (openPayload?.trainerId) {
+      setActiveTab("home");
+      setSelectedTrainer(openPayload);
+      setHomePage("trainerPublic");
+      setTrainerPublicBackTo(params?.backTo || "main");
+    }
+
+    if (
+      params?.initialTab !== undefined ||
+      params?.openTrainerPublic !== undefined ||
+      params?.backTo !== undefined
+    ) {
+      navigation?.setParams?.({
+        initialTab: undefined,
+        openTrainerPublic: undefined,
+        backTo: undefined,
+      });
+    }
+  }, [route?.params, navigation]);
+
+  // اگر از home خارج شدیم، زیرصفحات home را ریست کن
+  useEffect(() => {
+    if (activeTab !== "home" && homePage !== "main") {
+      setHomePage("main");
+      setSelectedSport(null);
+      setSelectedTrainer(null);
+    }
+  }, [activeTab, homePage]);
+
+  const renderHomeClient = () => {
+    if (homePage === "sports") {
+      return (
+        <SportsCategoriesScreen
+          onBack={() => setHomePage("main")}
+          onSelectSport={(sport) => {
+            setSelectedSport(sport);
+            setHomePage("sportTrainers");
+          }}
+        />
+      );
+    }
+
+    if (homePage === "sportTrainers") {
+      return (
+        <SportTrainersScreen
+          sport={selectedSport}
+          onBack={() => setHomePage("sports")}
+          onSelectTrainer={(payload) =>
+            openTrainerPublic(payload, "sportTrainers")
+          }
+        />
+      );
+    }
+
+    if (homePage === "trainerPublic") {
+      return (
+        <TrainerPublicProfile
+          trainerId={selectedTrainer?.trainerId}
+          trainerData={selectedTrainer?.trainerData}
+          withinHomeShell
+          onBack={() => {
+            setHomePage(trainerPublicBackTo || "main");
+            setSelectedTrainer(null);
+          }}
+        />
+      );
+    }
+
+    if (homePage === "topTrainers") {
+      return (
+        <TopTrainersScreen
+          onBack={() => setHomePage("main")}
+          onSelectTrainer={(payload) =>
+            openTrainerPublic(payload, "topTrainers")
+          }
+        />
+      );
+    }
+
+    return (
+      <HomeTab
+        onPressProfile={() => setActiveTab("profile")}
+        onPressAllTrainers={() => setHomePage("topTrainers")}
+        onPressAllCategories={() => setHomePage("sports")}
+        onSelectSport={(sport) => {
+          setSelectedSport(sport);
+          setHomePage("sportTrainers");
+        }}
+        onSelectTrainer={(payload) => openTrainerPublic(payload, "main")}
+      />
+    );
+  };
+
+  const renderHomeCoach = () => {
+    return (
+      <CoachHomeTab
+        onSelectAthlete={(athlete) => {
+          openCoachAthletePlan(athlete);
+        }}
+      />
+    );
+  };
+
+  const renderCoachWorkout = () => {
+    if (coachWorkoutPage === "athletePlan") {
+      return (
+        <CoachAthletePlanScreen
+          athlete={selectedAthlete}
+          planByDay={planByDayForSelected}
+          onPressAddForDay={onAddExerciseForDay}
+          onNavigateToWorkouts={onNavigateFromPlanToPicker}
+          onBack={closeCoachAthletePlan}
+          onOpenChat={openCoachChat} // ✅
+        />
+      );
+    }
+
+    if (coachWorkoutPage === "picker") {
+      return (
+        <CoachWorkoutsTab
+          onAddToPlan={onAddToAthletePlan}
+          onPickDone={() => {
+            setPlanPickerContext(null);
+            setCoachWorkoutPage("athletePlan");
+          }}
+        />
+      );
+    }
+
+    return <CoachWorkoutsTab />;
+  };
 
   const renderContent = () => {
     if (activeTab === "home") {
-      // ✅ فقط کاربر عادی
-      if (role === "client") {
-        return (
-          <HomeTab
-            onPressProfile={() => setActiveTab("profile")}
-            onPressAllTrainers={() => {}}
-            onPressAllCategories={() => {}}
-          />
-        );
-      }
+      if (role === "client") return renderHomeClient();
+      if (role === "coach") return renderHomeCoach();
 
-      // ✅ مربی => همان هوم قبلی (placeholder فعلی تو)
       return (
         <View style={styles.centerContent}>
           <Text style={styles.contentText}>صفحه هوم</Text>
@@ -37,16 +324,33 @@ export default function HomeScreen() {
     }
 
     if (activeTab === "workout") {
-      return (
-        <View style={styles.centerContent}>
-          <Text style={styles.contentText}>صفحه تمرین‌ها</Text>
-        </View>
-      );
+      if (role === "coach") return renderCoachWorkout();
+      if (role === "client") {
+        return (
+          <>
+            <CoachAthletePlanScreen
+              athlete={profile}
+              readOnly
+              // چون تب است، back را بی‌اثر یا برگردان به home tab
+              onBack={() => setActiveTab("home")}
+              onOpenChat={() => setClientChatVisible(true)}
+            />
+
+            <CoachChatOverlay
+              visible={clientChatVisible}
+              athlete={profile}
+              onClose={() => setClientChatVisible(false)}
+              bottomOffset={ms(120)}
+              meSender="athlete" // ✅ کلیدی‌ترین تغییر برای اینکه UI چت در user به‌هم نریزد
+            />
+          </>
+        );
+      }
     }
+
     if (activeTab === "profile") {
       if (role === "coach") return <ProfileTab />;
 
-      // فعلاً یک placeholder یا صفحه پروفایل کاربر (اگر داری)
       return (
         <View style={styles.centerContent}>
           <Text style={styles.contentText}>پروفایل کاربر</Text>
@@ -60,41 +364,47 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* محتوای تب‌ها */}
         <View style={styles.content}>{renderContent()}</View>
 
-        {/* نوار پایین با ۳ گزینه، همیشه ثابت */}
+        {/* ✅ Chat Overlay (۹۰٪ + BottomTab دیده می‌ماند) */}
+        {role === "coach" && (
+          <CoachChatOverlay
+            visible={chatVisible}
+            athlete={chatAthlete || selectedAthlete}
+            onClose={closeCoachChat}
+            coachName={coachDisplayName}
+            bottomOffset={ms(120)}
+          />
+        )}
+
         <View style={styles.bottomBarWrapper}>
           <View style={styles.bottomBar}>
-            {/* تمرین‌ها */}
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "workout" && styles.bottomTabItemActive,
+                effectiveTab === "workout" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("workout")}
+              onPress={() => switchTab("workout")}
             >
               <DumbbellIcon size={40} />
             </Pressable>
 
-            {/* هوم */}
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "home" && styles.bottomTabItemActive,
+                effectiveTab === "home" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("home")}
+              onPress={() => switchTab("home")}
             >
               <HomeIcon size={40} />
             </Pressable>
 
-            {/* پروفایل */}
             <Pressable
               style={[
                 styles.bottomTabItem,
-                activeTab === "profile" && styles.bottomTabItemActive,
+                effectiveTab === "profile" && styles.bottomTabItemActive,
               ]}
-              onPress={() => setActiveTab("profile")}
+              onPress={() => switchTab("profile")}
             >
               <FontAwesome5
                 name="user-alt"
@@ -109,35 +419,24 @@ export default function HomeScreen() {
   );
 }
 
-// ---------- استایل‌ها ----------
-
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
   container: {
     flex: 1,
     paddingHorizontal: ms(30),
     paddingTop: ms(24),
     paddingBottom: ms(24),
   },
-  content: {
-    flex: 1,
-  },
-  centerContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  content: { flex: 1 },
+
+  centerContent: { flex: 1, alignItems: "center", justifyContent: "center" },
   contentText: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(18),
     color: COLORS.white,
   },
-  bottomBarWrapper: {
-    justifyContent: "flex-end",
-  },
+
+  bottomBarWrapper: { justifyContent: "flex-end" },
   bottomBar: {
     flexDirection: "row",
     backgroundColor: COLORS.inputBg2,
@@ -155,7 +454,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bottomTabItemActive: {
-    backgroundColor: COLORS.white,
-  },
+  bottomTabItemActive: { backgroundColor: COLORS.white },
 });

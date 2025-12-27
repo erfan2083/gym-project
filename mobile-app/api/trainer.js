@@ -236,3 +236,126 @@ export const getTopTrainers = async (limit = 3) => {
     return [];
   }
 };
+
+
+
+// به فایل api/trainer.js اضافه کنید
+
+/**
+ * دریافت پروفایل پابلیک یک مربی خاص با ID
+ * (شامل بیوگرافی، تخصص‌ها، عکس مدرک و ...)
+ */
+export const getTrainerProfileById = async (trainerId) => {
+  // فرض بر این است که بک‌اند شما روتی شبیه به این دارد:
+  // GET /api/trainer/profile/:id
+  // که دقیقاً همان خروجی getMyTrainerProfile را برمی‌گرداند
+  const res = await api.get(`/api/trainer/profile/${trainerId}`);
+  return res.data;
+};
+
+
+/**
+ * لیست رشته‌ها + تعداد مربی هر رشته
+ * GET /api/trainer/specialties/with-count
+ */
+export async function getSportsCategories() {
+  const res = await api.get("/api/trainer/specialties/with-count");
+
+  // خروجی DB: {id, name, trainer_count}
+  return (res.data || []).map((x) => ({
+    id: x.id,
+    title: x.name,
+    count: Number(x.trainer_count || 0),
+    iconType: x.id, // فعلاً برای مپ‌کردن آیکن در UI
+  }));
+}
+
+/**
+ * لیست مربی‌های یک رشته
+ * GET /api/trainer/specialties/:specialtyId/trainers
+ */
+export async function getTrainersBySport(specialtyId) {
+  const res = await api.get(`/api/trainer/specialties/${specialtyId}/trainers`);
+
+  return (res.data || []).map((t) => ({
+    id: t.id,
+    name: t.full_name || t.username || "مربی",
+    avatarUrl: t.avatar_url || null,
+    username: t.username,
+    city: t.city || "نامشخص",
+    rating: Number(t.rating || 0),
+    reviewCount: Number(t.review_count || 0),
+  }));
+}
+
+
+export async function getMyAthletes() {
+  const res = await api.get("/api/trainer/my-athletes");
+  return res.data || [];
+}
+
+
+// ─────────────────────────────────────────────
+// ✅ Workouts / Schedule (Coach)
+// ─────────────────────────────────────────────
+
+// GET /api/trainer/workouts/library
+export const getWorkoutsLibrary = async () => {
+  const res = await api.get("/api/trainer/workouts/library");
+  return res.data;
+};
+
+// POST /api/trainer/workouts (multipart: video)
+export const createMyWorkout = async ({ title, description, video }) => {
+  const form = new FormData();
+  form.append("title", title);
+  if (description) form.append("description", description);
+
+  // video: { uri, type, name }
+  form.append("video", {
+    uri: video.uri,
+    type: video.type || "video/mp4",
+    name: video.name || "workout.mp4",
+  });
+
+  const res = await api.post("/api/trainer/workouts", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+// GET /api/trainer/schedule/week?traineeId=&weekStart=
+export const getWeekScheduleForCoach = async ({ traineeId, weekStart }) => {
+  const res = await api.get("/api/trainer/schedule/week", {
+    params: { traineeId, weekStart },
+  });
+  return res.data;
+};
+
+// POST /api/trainer/schedule/item
+export const addScheduleItem = async ({
+  traineeId,
+  weekStart,
+  dayOfWeek,
+  workoutId,
+  sets,
+  reps,
+  notes,
+}) => {
+  const res = await api.post("/api/trainer/schedule/item", {
+    traineeId,
+    weekStart,
+    dayOfWeek,
+    workoutId,
+    sets,
+    reps,
+    notes,
+  });
+  return res.data;
+};
+
+// DELETE /api/trainer/schedule/item/:id
+export const deleteScheduleItem = async ({ id }) => {
+  const res = await api.delete(`/api/trainer/schedule/item/${id}`);
+  return res.data;
+};

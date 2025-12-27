@@ -15,7 +15,7 @@ import {
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
 import { useProfileStore } from "../../store/profileStore";
-import TopTrainerCard from "../ui/TopTrainerCard"; //
+import TopTrainerCard from "../ui/TopTrainerCard";
 
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -23,8 +23,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HomeDumbbell from "../ui/HomeDumbbell";
 import Yogaicon from "../ui/Yogaicon";
 
-// ایمپورت API
-import { getTopTrainers } from "../../../api/trainer"; //
+import { getTopTrainers } from "../../../api/trainer";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -36,7 +35,6 @@ const HERO_CARD_HEIGHT = ms(112);
 const TRAINER_GAP = ms(10);
 const TRAINER_CARD_WIDTH = (CONTENT_WIDTH - TRAINER_GAP * 2) / 3;
 
-// اسلایدهای بالای صفحه
 const HERO_SLIDES = [
   {
     id: "s1",
@@ -58,14 +56,12 @@ const HERO_SLIDES = [
   },
 ];
 
-// داده فال‌بک (اگر اینترنت نبود یا لیست خالی بود)
 const TOP_TRAINERS_FALLBACK = [
   { id: "t1", name: "نام مربی", rating: 4.5, city: "تهران" },
   { id: "t2", name: "نام مربی", rating: 4.0, city: "شیراز" },
   { id: "t3", name: "نام مربی", rating: 5.0, city: "مشهد" },
 ];
 
-// دسته‌بندی‌ها
 const CATEGORIES = [
   { id: "c0", title: "", icon: null },
   { id: "c00", title: "", icon: null },
@@ -96,8 +92,11 @@ export default function HomeTab({
   onPressProfile,
   onPressAllTrainers,
   onPressAllCategories,
+  onSelectSport,
+  onSelectTrainer,
   onPressTrainer,
 }) {
+  const handlePressTrainer = onPressTrainer ?? onSelectTrainer;
   const profile = useProfileStore((state) => state.profile);
 
   const displayName = useMemo(() => {
@@ -105,14 +104,8 @@ export default function HomeTab({
     return n.trim() || "نام کاربر";
   }, [profile?.name, profile?.username]);
 
-  // ---------------------------
-  // Search
-  // ---------------------------
   const [query, setQuery] = useState("");
 
-  // ---------------------------
-  // Top Trainers Data
-  // ---------------------------
   const [topTrainers, setTopTrainers] = useState([]);
   const [topLoading, setTopLoading] = useState(true);
 
@@ -122,27 +115,20 @@ export default function HomeTab({
     (async () => {
       try {
         setTopLoading(true);
-        // فراخوانی API
         const list = await getTopTrainers(3);
 
         if (!mounted) return;
 
-        // اگر API دیتا داد، آن را ست می‌کنیم
         if (Array.isArray(list) && list.length > 0) {
-          // اینجا یک نگاشت (Map) انجام می‌دهیم تا اگر بک‌اند full_name داد
-          // و کامپوننت name می‌خواست، مشکلی پیش نیاید.
           const normalized = list.map((item) => ({
             id: item.id,
-            // بک‌اند full_name می‌دهد، کامپوننت name می‌خواهد
             name: item.name || item.full_name || item.username || "مربی",
-            // بک‌اند avatar_url می‌دهد، کامپوننت avatarUrl می‌خواهد
             avatarUrl: item.avatarUrl || item.avatar_url || null,
             city: item.city || "نامشخص",
             rating: Number(item.rating) || 0,
           }));
           setTopTrainers(normalized);
         } else {
-          // اگر لیست خالی بود، آرایه خالی ست کن (تا فال‌بک نمایش داده شود)
           setTopTrainers([]);
         }
       } catch (e) {
@@ -158,16 +144,12 @@ export default function HomeTab({
     };
   }, []);
 
-  // اگر دیتا هنوز لود نشده یا خالی است، از دیتای پیش‌فرض استفاده کن تا UI زشت نشود
   const trainersToShow = useMemo(() => {
     if (topLoading) return TOP_TRAINERS_FALLBACK;
     if (topTrainers && topTrainers.length > 0) return topTrainers;
     return TOP_TRAINERS_FALLBACK;
   }, [topLoading, topTrainers]);
 
-  // ---------------------------
-  // Hero Carousel Logic (Swipe + Snap) - دست نخورده
-  // ---------------------------
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const [mainScrollEnabled, setMainScrollEnabled] = useState(true);
 
@@ -330,7 +312,6 @@ export default function HomeTab({
       showsVerticalScrollIndicator={false}
       scrollEnabled={mainScrollEnabled}
     >
-      {/* ---------- هدر بالا ---------- */}
       <View style={styles.topHeaderRow}>
         <Pressable onPress={onPressProfile} hitSlop={8}>
           <View style={styles.userIconCircle}>
@@ -344,7 +325,6 @@ export default function HomeTab({
         <Text style={styles.userName}>{displayName}</Text>
       </View>
 
-      {/* ---------- Search ---------- */}
       <View style={styles.searchBar}>
         <Ionicons
           name="search-outline"
@@ -362,14 +342,10 @@ export default function HomeTab({
         />
       </View>
 
-      {/* ---------- Hero Carousel ---------- */}
       <View style={styles.heroSection}>
         <View style={styles.heroViewport} {...panResponder.panHandlers}>
           <Animated.View
-            style={[
-              styles.heroTrack,
-              { transform: [{ translateX: dragX }] },
-            ]}
+            style={[styles.heroTrack, { transform: [{ translateX: dragX }] }]}
           >
             <View style={styles.heroSlide}>
               {renderHeroSlide(activeHeroIndex - 1)}
@@ -397,7 +373,6 @@ export default function HomeTab({
         </View>
       </View>
 
-      {/* ---------- بهترین مربی‌ها (Updated Section) ---------- */}
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeaderText}>بهترین مربی ها</Text>
         <View style={styles.sectionHeaderLine} />
@@ -406,17 +381,14 @@ export default function HomeTab({
       <View style={styles.trainersRow}>
         {trainersToShow.map((t, index) => (
           <TopTrainerCard
-            // اگر id نداشت از ایندکس استفاده کن تا ارور نده
             key={t?.id ? String(t.id) : `top-${index}`}
             t={t}
             onPress={(trainer) => {
-              if (typeof onPressTrainer === "function") {
-                onPressTrainer(trainer);
-              } else {
-                console.log("Trainer clicked:", trainer?.id);
-              }
+              handlePressTrainer?.({
+                trainerId: trainer.id,
+                trainerData: trainer,
+              });
             }}
-            // محاسبه عرض کارت برای اینکه دقیقاً 3 تا جا بشه
             style={{ width: TRAINER_CARD_WIDTH }}
           />
         ))}
@@ -430,7 +402,6 @@ export default function HomeTab({
         <Text style={styles.seeAllBtnText}>مشاهده تمام مربی ها</Text>
       </Pressable>
 
-      {/* ---------- دسته بندی رشته های ورزشی ---------- */}
       <View style={[styles.sectionHeaderRow, { marginTop: ms(18) }]}>
         <Text style={styles.sectionHeaderText}>دسته بندی رشته های ورزشی</Text>
         <View style={styles.sectionHeaderLine} />
@@ -442,7 +413,29 @@ export default function HomeTab({
         contentContainerStyle={styles.categoriesRow}
       >
         {CATEGORIES.map((c) => (
-          <Pressable key={c.id} style={styles.categoryCard} hitSlop={6}>
+          <Pressable
+            key={c.id}
+            style={styles.categoryCard}
+            hitSlop={6}
+            onPress={() => {
+              if (!c?.title) return;
+
+              const mapId =
+                c.title === "فیتنس"
+                  ? "2"
+                  : c.title === "یوگا"
+                  ? "7"
+                  : c.title === "بدنسازی"
+                  ? "1"
+                  : c.id;
+
+              onSelectSport?.({
+                id: mapId,
+                title: c.title,
+                iconType: mapId,
+              });
+            }}
+          >
             <View style={styles.categoryIconWrap}>
               {typeof c.icon === "function" ? c.icon(ms(28)) : null}
             </View>
@@ -561,6 +554,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  heroImage: {
+    width: ms(97),
+    height: ms(97),
+    transform: [{ translateX: ms(15) }, { translateY: ms(-3) }],
+  },
 
   heroDotsRow: {
     flexDirection: "row",
@@ -577,11 +575,6 @@ const styles = StyleSheet.create({
     marginHorizontal: ms(3),
   },
   heroDotActive: { backgroundColor: COLORS.lighgreen },
-  heroImage: {
-    width: ms(97),
-    height: ms(97),
-    transform: [{ translateX: ms(15) }, { translateY: ms(-3) }],
-  },
 
   sectionHeaderRow: {
     flexDirection: "row-reverse",
