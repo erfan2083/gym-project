@@ -18,4 +18,5 @@ export const COLORS = {
   onPrimary: "#F6F4F4",
   formTitle: "#EEEEEE",
   lighgreen: "#44FF63",
+  chatbg: "#444444",
 };
