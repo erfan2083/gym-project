@@ -16,6 +16,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { COLORS } from "../../theme/colors";
 
+// ✅ این دو مسیر را اگر لازم بود مطابق پروژه‌ات اصلاح کن:
+import api from "../../../api/client";
+import { getSocket } from "../../../api/socket";
+
 // AsyncStorage (اگر موجود نبود کرش نکن)
 const safeGetAsyncStorage = () => {
   try {
@@ -42,6 +46,9 @@ const getThreadId = (athlete) => {
 
   return null;
 };
+
+const getOtherUserId = (athlete) =>
+  athlete?.id ?? athlete?._id ?? athlete?.userId ?? athlete?.user_id ?? null;
 
 const getAthleteName = (athlete) => {
   const full =
@@ -86,6 +93,7 @@ export default function CoachChatOverlay({
   meSender = "coach",
 }) {
   const threadId = useMemo(() => getThreadId(athlete), [athlete]);
+  const otherUserId = useMemo(() => getOtherUserId(athlete), [athlete]);
   const athleteName = useMemo(() => getAthleteName(athlete), [athlete]);
 
   const AsyncStorage = safeGetAsyncStorage();
@@ -98,31 +106,67 @@ export default function CoachChatOverlay({
 
   const isUser = meSender === "athlete"; // ✅ نقش UI فقط با همین
 
-  // Load thread on open
+  // ---- helpers: map server message -> UI message ----
+  const mapServerMessage = (m) => {
+    const sid = Number(m?.sender_id);
+    const other = Number(otherUserId);
+
+    return {
+      id: String(m?.id),
+      serverId: m?.id,
+      sender_id: m?.sender_id,
+      receiver_id: m?.receiver_id,
+      sender: sid === other ? "athlete" : meSender,
+      text: m?.content || "",
+      ts: m?.sent_at ? new Date(m.sent_at).getTime() : Date.now(),
+    };
+  };
+
+  const canUseStorage = Boolean(AsyncStorage?.default || AsyncStorage);
+
+  // 1) Load cached messages on open, then fetch history from server
   useEffect(() => {
     let mounted = true;
 
     const load = async () => {
       if (!visible) return;
+
+      // Reset if no thread
       if (!threadId) {
         setMessages([]);
         return;
       }
 
-      if (!AsyncStorage?.default && !AsyncStorage) {
-        return;
+      // (A) Load local cache first (fast)
+      if (canUseStorage) {
+        try {
+          const storage = AsyncStorage.default || AsyncStorage;
+          const raw = await storage.getItem(storageKeyForThread(threadId));
+          if (!mounted) return;
+          const parsed = raw ? JSON.parse(raw) : [];
+          setMessages(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          if (!mounted) return;
+          setMessages([]);
+        }
       }
 
+      // (B) Fetch server history
+      if (!otherUserId) return;
       try {
         setLoading(true);
-        const storage = AsyncStorage.default || AsyncStorage;
-        const raw = await storage.getItem(storageKeyForThread(threadId));
+        const { data } = await api.get(
+          `/api/chat/history/${otherUserId}?limit=80`
+        );
+
         if (!mounted) return;
-        const parsed = raw ? JSON.parse(raw) : [];
-        setMessages(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        if (!mounted) return;
-        setMessages([]);
+
+        const arr = Array.isArray(data) ? data : [];
+        const mapped = arr.map(mapServerMessage);
+
+        setMessages(mapped);
+      } catch (e) {
+        // اگر history شکست خورد، همان cache لوکال نمایش داده می‌شود
       } finally {
         if (mounted) setLoading(false);
       }
@@ -132,14 +176,15 @@ export default function CoachChatOverlay({
     return () => {
       mounted = false;
     };
-  }, [visible, threadId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, threadId, otherUserId, meSender]);
 
-  // Save thread on change (when visible)
+  // 2) Save to local storage whenever messages change (while visible)
   useEffect(() => {
     const save = async () => {
       if (!visible) return;
       if (!threadId) return;
-      if (!AsyncStorage?.default && !AsyncStorage) return;
+      if (!canUseStorage) return;
 
       try {
         const storage = AsyncStorage.default || AsyncStorage;
@@ -152,8 +197,9 @@ export default function CoachChatOverlay({
       }
     };
     save();
-  }, [messages, visible, threadId]);
+  }, [messages, visible, threadId, canUseStorage, AsyncStorage]);
 
+  // 3) Auto-scroll
   useEffect(() => {
     if (!visible) return;
     requestAnimationFrame(() => {
@@ -161,20 +207,109 @@ export default function CoachChatOverlay({
     });
   }, [visible, messages?.length]);
 
-  const send = () => {
+  // 4) Socket listener for new messages
+  useEffect(() => {
+    let socket;
+    let cleanup = null;
+
+    if (!visible) return;
+    if (!otherUserId) return;
+
+    (async () => {
+      try {
+        socket = await getSocket();
+
+        const onNew = (m) => {
+          const sid = Number(m?.sender_id);
+          const rid = Number(m?.receiver_id);
+          const other = Number(otherUserId);
+
+          // فقط پیام‌هایی که بین من و otherUserId هستند
+          if (![sid, rid].includes(other)) return;
+
+          const msg = mapServerMessage(m);
+
+          setMessages((prev) => {
+            const list = prev || [];
+            // جلوگیری از duplicate
+            if (
+              list.some(
+                (x) =>
+                  String(x.serverId || x.id) === String(msg.serverId || msg.id)
+              )
+            ) {
+              return list;
+            }
+            return [...list, msg];
+          });
+        };
+
+        socket.on("chat:new", onNew);
+
+        cleanup = () => {
+          socket?.off("chat:new", onNew);
+        };
+      } catch {
+        // اگر سوکت وصل نشد، چت فقط با history کار می‌کند
+      }
+    })();
+
+    return () => {
+      cleanup?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, otherUserId, meSender]);
+
+  // 5) Send message via socket (optimistic + ack)
+  const send = async () => {
     const text = String(draft || "").trim();
     if (!text) return;
+    if (!otherUserId) return;
 
-    const now = Date.now();
-    const msg = {
-      id: `m-${now}`,
-      sender: meSender,
-      text,
-      ts: now,
-    };
+    const tempId = `temp-${Date.now()}`;
 
-    setMessages((prev) => [...(prev || []), msg]);
+    // optimistic
+    setMessages((prev) => [
+      ...(prev || []),
+      {
+        id: tempId,
+        sender: meSender,
+        text,
+        ts: Date.now(),
+        pending: true,
+      },
+    ]);
     setDraft("");
+
+    try {
+      const socket = await getSocket();
+      socket.emit(
+        "chat:send",
+        { receiverId: otherUserId, content: text },
+        (ack) => {
+          if (!ack?.ok || !ack?.message) {
+            setMessages((prev) =>
+              (prev || []).map((x) =>
+                x.id === tempId ? { ...x, pending: false, failed: true } : x
+              )
+            );
+            return;
+          }
+
+          const confirmed = mapServerMessage(ack.message);
+
+          setMessages((prev) =>
+            (prev || []).map((x) => (x.id === tempId ? confirmed : x))
+          );
+        }
+      );
+    } catch {
+      setMessages((prev) =>
+        (prev || []).map((x) =>
+          x.id === tempId ? { ...x, pending: false, failed: true } : x
+        )
+      );
+    }
   };
 
   const renderDatePill = () => {
@@ -249,17 +384,11 @@ export default function CoachChatOverlay({
           isUser ? styles.cardWrapUser : styles.cardWrapCoach,
         ]}
       >
-        <View
-          style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}
-        >
+        <View style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}>
           {/* Header */}
           <View style={styles.headerRow}>
             <Pressable onPress={onClose} hitSlop={10} style={styles.backBtn}>
-              <Ionicons
-                name="arrow-back"
-                size={ms(22)}
-                color={COLORS.primary}
-              />
+              <Ionicons name="arrow-back" size={ms(22)} color={COLORS.primary} />
             </Pressable>
 
             <View style={styles.headerLine} />
@@ -269,11 +398,7 @@ export default function CoachChatOverlay({
             </Text>
 
             <View style={styles.avatarCircle}>
-              <FontAwesome5
-                name="user-alt"
-                size={ms(16)}
-                color={COLORS.primary}
-              />
+              <FontAwesome5 name="user-alt" size={ms(16)} color={COLORS.primary} />
             </View>
           </View>
 
