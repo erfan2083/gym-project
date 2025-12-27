@@ -96,6 +96,9 @@ export default function CoachChatOverlay({
   const scrollRef = useRef(null);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
+  
+  // ✅ FIX: Track sent message IDs to prevent duplicates
+  const sentMessageIdsRef = useRef(new Set());
 
   const isUser = meSender === "athlete";
 
@@ -134,6 +137,8 @@ export default function CoachChatOverlay({
   // 1) Load cached messages on open, then fetch history from server
   useEffect(() => {
     isMountedRef.current = true;
+    // ✅ Clear sent message IDs when chat opens
+    sentMessageIdsRef.current.clear();
 
     const load = async () => {
       if (!visible) return;
@@ -253,20 +258,35 @@ export default function CoachChatOverlay({
           const sid = Number(m?.sender_id);
           const rid = Number(m?.receiver_id);
           const other = Number(otherUserId);
+          const msgId = m?.id;
 
           // فقط پیام‌هایی که بین من و otherUserId هستند
           if (sid !== other && rid !== other) return;
 
-          console.log("📨 New message received:", m);
+          // ✅ FIX: اگر پیام از طرف ما فرستاده شده، آن را نادیده بگیر
+          // چون قبلاً در callback ack اضافه شده است
+          if (sid !== other) {
+            console.log("📨 Ignoring own message from chat:new (already handled by ack):", msgId);
+            return;
+          }
+
+          // ✅ FIX: بررسی کن که آیا این پیام قبلاً توسط ما ارسال شده
+          if (msgId && sentMessageIdsRef.current.has(msgId)) {
+            console.log("📨 Ignoring already processed message:", msgId);
+            return;
+          }
+
+          console.log("📨 New message received from other user:", m);
 
           const msg = mapServerMessage(m);
           if (!msg) return;
 
           setMessages((prev) => {
             const list = prev || [];
-            // ✅ جلوگیری از duplicate
-            const msgId = String(msg.serverId || msg.id);
-            if (list.some((x) => String(x.serverId || x.id) === msgId)) {
+            // ✅ جلوگیری از duplicate با چک کردن serverId
+            const checkId = String(msg.serverId || msg.id);
+            if (list.some((x) => String(x.serverId || x.id) === checkId)) {
+              console.log("📨 Duplicate message detected, skipping:", checkId);
               return list;
             }
             return [...list, msg];
@@ -345,7 +365,13 @@ export default function CoachChatOverlay({
             return;
           }
 
-          console.log("✅ Message sent successfully");
+          console.log("✅ Message sent successfully, server id:", ack.message?.id);
+          
+          // ✅ FIX: Track this message ID to prevent duplicates from chat:new
+          if (ack.message?.id) {
+            sentMessageIdsRef.current.add(ack.message.id);
+          }
+          
           const confirmed = mapServerMessage(ack.message);
 
           setMessages((prev) =>
@@ -388,12 +414,18 @@ export default function CoachChatOverlay({
     const isPending = m?.pending;
     const isFailed = m?.failed;
 
-    // ✅ کلید یونیک - استفاده از index به عنوان fallback
-    const uniqueKey = m?.serverId 
-      ? `server-${m.serverId}` 
-      : m?.id 
-        ? `local-${m.id}` 
-        : `idx-${index}`;
+    // ✅ FIX: Better unique key generation to prevent duplicates
+    // Use a combination of serverId, id, and index to ensure uniqueness
+    let uniqueKey;
+    if (m?.serverId) {
+      uniqueKey = `srv-${m.serverId}`;
+    } else if (m?.id && !m.id.startsWith('temp-')) {
+      uniqueKey = `id-${m.id}`;
+    } else if (m?.id) {
+      uniqueKey = `tmp-${m.id}`;
+    } else {
+      uniqueKey = `idx-${index}-${m?.ts || Date.now()}`;
+    }
 
     return (
       <Pressable

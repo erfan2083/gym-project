@@ -35,9 +35,12 @@ export default function HomeScreen() {
   const profile = useProfileStore((s) => s.profile);
   const role = profile?.role; // "coach" یا "client"
 
+
   // ✅ شناسه کاربر فعلی
   const currentUserId = useMemo(() => {
-    return profile?.id || profile?._id || profile?.userId || null;
+    const id = profile?.id || profile?._id || profile?.userId || profile?.user_id || null;
+   console.log("🔍 currentUserId:", id, "from profile:", profile);
+  return id;
   }, [profile]);
 
   const [clientChatVisible, setClientChatVisible] = useState(false);

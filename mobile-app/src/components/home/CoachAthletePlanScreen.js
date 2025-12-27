@@ -129,6 +129,14 @@ export default function CoachAthletePlanScreen({
     try {
       console.log("📥 Fetching schedule, readOnly:", readOnly, "traineeId:", traineeId, "currentUserId:", currentUserId);
 
+      console.log("🔍 DEBUG:", {
+      readOnly,
+      currentUserId,
+      traineeId,
+      weekStart,
+      conditionResult: readOnly && currentUserId,
+         });
+
       let data;
 
       // ✅ FIX: Use different API based on readOnly (client) vs coach
