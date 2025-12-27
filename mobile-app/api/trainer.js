@@ -293,3 +293,69 @@ export async function getMyAthletes() {
   const res = await api.get("/api/trainer/my-athletes");
   return res.data || [];
 }
+
+
+// ─────────────────────────────────────────────
+// ✅ Workouts / Schedule (Coach)
+// ─────────────────────────────────────────────
+
+// GET /api/trainer/workouts/library
+export const getWorkoutsLibrary = async () => {
+  const res = await api.get("/api/trainer/workouts/library");
+  return res.data;
+};
+
+// POST /api/trainer/workouts (multipart: video)
+export const createMyWorkout = async ({ title, description, video }) => {
+  const form = new FormData();
+  form.append("title", title);
+  if (description) form.append("description", description);
+
+  // video: { uri, type, name }
+  form.append("video", {
+    uri: video.uri,
+    type: video.type || "video/mp4",
+    name: video.name || "workout.mp4",
+  });
+
+  const res = await api.post("/api/trainer/workouts", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+// GET /api/trainer/schedule/week?traineeId=&weekStart=
+export const getWeekScheduleForCoach = async ({ traineeId, weekStart }) => {
+  const res = await api.get("/api/trainer/schedule/week", {
+    params: { traineeId, weekStart },
+  });
+  return res.data;
+};
+
+// POST /api/trainer/schedule/item
+export const addScheduleItem = async ({
+  traineeId,
+  weekStart,
+  dayOfWeek,
+  workoutId,
+  sets,
+  reps,
+  notes,
+}) => {
+  const res = await api.post("/api/trainer/schedule/item", {
+    traineeId,
+    weekStart,
+    dayOfWeek,
+    workoutId,
+    sets,
+    reps,
+    notes,
+  });
+  return res.data;
+};
+
+// DELETE /api/trainer/schedule/item/:id
+export const deleteScheduleItem = async ({ id }) => {
+  const res = await api.delete(`/api/trainer/schedule/item/${id}`);
+  return res.data;
+};
