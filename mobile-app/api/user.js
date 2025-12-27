@@ -34,3 +34,23 @@ export async function purchasePlan(planId) {
 
 
 
+export async function getMyWeekSchedule(weekStart) {
+  const res = await api.get("/api/user/schedule/week", {
+    params: { weekStart },
+  });
+  return res.data;
+}
+
+
+// ✅ NEW: Get client's primary trainer (from active subscription)
+export async function getMyTrainer() {
+  const res = await api.get("/api/user/my-trainer");
+  return res.data;
+}
+
+
+// ✅ NEW: Get all trainers the client has active subscriptions with
+export async function getMyTrainers() {
+  const res = await api.get("/api/user/my-trainers");
+  return res.data;
+}

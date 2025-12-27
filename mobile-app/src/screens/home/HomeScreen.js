@@ -1,5 +1,5 @@
 // src/screens/home/HomeScreen.js
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { View, Text, StyleSheet, SafeAreaView, Pressable } from "react-native";
 import { ms } from "react-native-size-matters";
 import { COLORS } from "../../theme/colors";
@@ -24,6 +24,9 @@ import CoachHomeTab from "../../components/home/CoachHomeTab";
 import CoachAthletePlanScreen from "../../components/home/CoachAthletePlanScreen";
 import CoachChatOverlay from "../../components/home/CoachChatOverlay";
 
+// ✅ NEW: Import client API
+import { getMyTrainer } from "../../../api/user";
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -39,8 +42,9 @@ export default function HomeScreen() {
 
   const [clientChatVisible, setClientChatVisible] = useState(false);
 
-  // ✅ اطلاعات مربی کاربر (برای چت)
+  // ✅ اطلاعات مربی کاربر (برای چت) - NOW PROPERLY LOADED
   const [userTrainerInfo, setUserTrainerInfo] = useState(null);
+  const [trainerLoading, setTrainerLoading] = useState(false);
 
   const coachDisplayName = useMemo(() => {
     const n = profile?.name || profile?.username || "";
@@ -76,6 +80,45 @@ export default function HomeScreen() {
     if (!selectedAthleteId) return {};
     return plansByAthlete?.[selectedAthleteId] || {};
   }, [plansByAthlete, selectedAthleteId]);
+
+  // ✅ NEW: Load client's trainer on mount (for client role)
+  const loadClientTrainer = useCallback(async () => {
+    if (role !== "client") return;
+    
+    try {
+      setTrainerLoading(true);
+      console.log("📥 Loading client's trainer...");
+      
+      const data = await getMyTrainer();
+      
+      if (data?.trainerId) {
+        console.log("✅ Client's trainer loaded:", data);
+        setUserTrainerInfo({
+          id: data.trainerId,
+          trainerId: data.trainerId,
+          name: data.trainerName || "مربی",
+          trainerName: data.trainerName,
+          avatarUrl: data.trainerAvatar,
+          username: data.trainerUsername,
+          planTitle: data.planTitle,
+        });
+      } else {
+        console.log("❌ No active trainer found for client");
+        setUserTrainerInfo(null);
+      }
+    } catch (error) {
+      console.error("Error loading client trainer:", error);
+      setUserTrainerInfo(null);
+    } finally {
+      setTrainerLoading(false);
+    }
+  }, [role]);
+
+  useEffect(() => {
+    if (role === "client") {
+      loadClientTrainer();
+    }
+  }, [role, loadClientTrainer]);
 
   // Coach: open athlete plan INSIDE workout tab
   const openCoachAthletePlan = (athlete) => {
@@ -165,14 +208,9 @@ export default function HomeScreen() {
     setChatAthlete(null);
   };
 
-  // ✅ باز کردن چت برای کاربر
+  // ✅ باز کردن چت برای کاربر - NOW USES LOADED TRAINER
   const openClientChat = () => {
-    // ✅ برای چت کاربر، باید اطلاعات مربی رو پاس بدیم
-    // فعلاً از profile استفاده می‌کنیم (بعداً می‌تونی از API بگیری)
-    setUserTrainerInfo({
-      id: profile?.trainerId || 5, // ✅ شناسه مربی کاربر - این باید از جایی بیاد
-      name: profile?.trainerName || "مربی من",
-    });
+    console.log("Opening client chat with trainer:", userTrainerInfo);
     setClientChatVisible(true);
   };
 
@@ -349,7 +387,10 @@ export default function HomeScreen() {
         return (
           <>
             <CoachAthletePlanScreen
-              athlete={profile}
+              athlete={{
+                ...profile,
+                name: profile?.name || profile?.username || "برنامه تمرینی من",
+              }}
               readOnly
               // ✅ مهم: شناسه کاربر رو پاس بده
               currentUserId={currentUserId}
@@ -358,10 +399,10 @@ export default function HomeScreen() {
               onOpenChat={openClientChat}
             />
 
-            {/* ✅ چت کاربر با مربی */}
+            {/* ✅ چت کاربر با مربی - NOW WITH LOADED TRAINER */}
             <CoachChatOverlay
               visible={clientChatVisible}
-              // ✅ باید اطلاعات مربی باشه، نه خود کاربر
+              // ✅ اطلاعات مربی که از API گرفتیم
               athlete={userTrainerInfo}
               onClose={() => setClientChatVisible(false)}
               bottomOffset={ms(120)}

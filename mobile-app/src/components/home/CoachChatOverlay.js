@@ -18,7 +18,7 @@ import { COLORS } from "../../theme/colors";
 
 // ✅ این دو مسیر را اگر لازم بود مطابق پروژه‌ات اصلاح کن:
 import api from "../../../api/client";
-import { getSocket } from "../../../api/socket";
+import { getSocket, isSocketConnected } from "../../../api/socket";
 
 // AsyncStorage (اگر موجود نبود کرش نکن)
 const safeGetAsyncStorage = () => {
@@ -32,14 +32,26 @@ const safeGetAsyncStorage = () => {
 
 const storageKeyForThread = (oderId) => `coach_chat_thread_${oderId}`;
 
-const getOtherUserId = (athlete) =>
-  athlete?.id ?? athlete?._id ?? athlete?.oderId ?? athlete?.user_id ?? athlete?.trainerId ?? null;
+// ✅ FIX: Always return a number for user ID
+const getOtherUserId = (athlete) => {
+  const rawId = athlete?.id ?? athlete?._id ?? athlete?.oderId ?? athlete?.user_id ?? athlete?.trainerId ?? athlete?.trainer_id ?? null;
+  
+  if (rawId === null || rawId === undefined) {
+    return null;
+  }
+  
+  // ✅ Convert to number
+  const numId = Number(rawId);
+  return isNaN(numId) ? null : numId;
+};
 
 const getAthleteName = (athlete) => {
   const full =
     athlete?.name ||
     athlete?.fullName ||
     athlete?.full_name ||
+    athlete?.trainerName ||
+    athlete?.trainer_name ||
     athlete?.username ||
     "";
   return String(full).trim() || "نام کاربر";
@@ -128,9 +140,12 @@ export default function CoachChatOverlay({
 
       // Reset if no otherUserId
       if (!otherUserId) {
+        console.log("❌ No otherUserId available for chat");
         setMessages([]);
         return;
       }
+
+      console.log("📥 Loading chat with user ID:", otherUserId, "Type:", typeof otherUserId);
 
       // (A) Load local cache first (fast)
       if (canUseStorage) {
@@ -149,7 +164,7 @@ export default function CoachChatOverlay({
       // (B) Fetch server history
       try {
         setLoading(true);
-        console.log(`📥 Loading chat history with user ${otherUserId}...`);
+        console.log(`📥 Fetching chat history with user ${otherUserId}...`);
         
         const { data } = await api.get(
           `/api/chat/history/${otherUserId}?limit=80`
@@ -259,7 +274,7 @@ export default function CoachChatOverlay({
         };
 
         socket.on("chat:new", onNew);
-        console.log("✅ Socket listener attached");
+        console.log("✅ Socket listener attached for chat");
 
         cleanup = () => {
           socket?.off("chat:new", onNew);
@@ -309,11 +324,14 @@ export default function CoachChatOverlay({
         socketRef.current = socket;
       }
 
-      console.log(`📤 Sending message to ${otherUserId}: "${text}"`);
+      console.log(`📤 Sending message to ${otherUserId} (type: ${typeof otherUserId}): "${text}"`);
 
       socket.emit(
         "chat:send",
-        { receiverId: Number(otherUserId), content: text },
+        { 
+          receiverId: Number(otherUserId), // ✅ Always send as number
+          content: text 
+        },
         (ack) => {
           if (!isMountedRef.current) return;
           
@@ -431,6 +449,51 @@ export default function CoachChatOverlay({
   };
 
   if (!visible) return null;
+
+  // ✅ Show warning if no trainer/athlete to chat with
+  if (!otherUserId) {
+    return (
+      <View
+        style={[
+          styles.overlayWrap,
+          isUser ? styles.overlayWrapUser : styles.overlayWrapCoach,
+          { paddingBottom: bottomOffset },
+        ]}
+      >
+        <Pressable
+          style={[
+            styles.backdrop,
+            isUser ? styles.backdropUser : styles.backdropCoach,
+          ]}
+          onPress={onClose}
+        />
+        <View style={[styles.cardWrap, isUser ? styles.cardWrapUser : styles.cardWrapCoach]}>
+          <View style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}>
+            <View style={styles.headerRow}>
+              <Pressable onPress={onClose} hitSlop={10} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={ms(22)} color={COLORS.primary} />
+              </Pressable>
+              <View style={styles.headerLine} />
+              <Text style={styles.headerName}>چت</Text>
+              <View style={styles.avatarCircle}>
+                <FontAwesome5 name="user-alt" size={ms(16)} color={COLORS.primary} />
+              </View>
+            </View>
+            
+            <View style={styles.noTrainerWrap}>
+              <Ionicons name="chatbubble-ellipses-outline" size={ms(48)} color={COLORS.text2} />
+              <Text style={styles.noTrainerText}>
+                {isUser 
+                  ? "هنوز اشتراک فعالی با مربی ندارید"
+                  : "شاگردی انتخاب نشده است"
+                }
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -618,6 +681,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBg2,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // ========= No Trainer State =========
+  noTrainerWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: ms(16),
+  },
+  noTrainerText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.text2,
+    textAlign: "center",
   },
 
   // ========= Messages =========

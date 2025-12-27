@@ -27,6 +27,9 @@ import {
   deleteScheduleItem,
 } from "../../../api/trainer";
 
+// ✅ NEW: Import client API
+import { getMyWeekSchedule } from "../../../api/user";
+
 // expo-av (اگر موجود نبود کرش نکن)
 const safeGetVideo = () => {
   try {
@@ -121,20 +124,30 @@ export default function CoachAthletePlanScreen({
   // ✅ Fetch weekly schedule from API
   // ✅ ─────────────────────────────────────────────
   const fetchWeekSchedule = useCallback(async () => {
-    if (!traineeId) {
-      console.warn("No traineeId provided, traineeId:", traineeId);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      console.log("📥 Fetching schedule for trainee:", traineeId, "readOnly:", readOnly);
+      console.log("📥 Fetching schedule, readOnly:", readOnly, "traineeId:", traineeId, "currentUserId:", currentUserId);
 
-      const data = await getWeekScheduleForCoach({
-        traineeId,
-        weekStart,
-      });
+      let data;
+
+      // ✅ FIX: Use different API based on readOnly (client) vs coach
+      if (readOnly && currentUserId) {
+        // Client viewing their own schedule
+        console.log("📥 Using CLIENT API: getMyWeekSchedule");
+        data = await getMyWeekSchedule(weekStart);
+      } else if (traineeId) {
+        // Coach viewing trainee's schedule
+        console.log("📥 Using COACH API: getWeekScheduleForCoach");
+        data = await getWeekScheduleForCoach({
+          traineeId,
+          weekStart,
+        });
+      } else {
+        console.warn("No traineeId or currentUserId provided");
+        setLoading(false);
+        return;
+      }
 
       const schedule = {};
       DAYS.forEach((d) => {
@@ -204,14 +217,14 @@ export default function CoachAthletePlanScreen({
     } finally {
       setLoading(false);
     }
-  }, [traineeId, weekStart, readOnly]);
+  }, [traineeId, weekStart, readOnly, currentUserId]);
 
   // ✅ Load schedule on mount - همیشه لود کن
   useEffect(() => {
-    if (traineeId) {
+    if (traineeId || currentUserId) {
       fetchWeekSchedule();
     }
-  }, [fetchWeekSchedule, traineeId]);
+  }, [fetchWeekSchedule, traineeId, currentUserId]);
 
   // ✅ ─────────────────────────────────────────────
   // ✅ Add exercise to schedule - با dayKey پارامتر
@@ -239,16 +252,23 @@ export default function CoachAthletePlanScreen({
         return;
       }
 
+      // ✅ FIX: Validate workoutId is a number
+      const workoutId = Number(exerciseData.workoutId || exerciseData.id || exerciseData.exerciseId);
+      if (!workoutId || isNaN(workoutId)) {
+        Alert.alert("خطا", "شناسه تمرین نامعتبر است");
+        return;
+      }
+
       try {
         setLoading(true);
 
         await addScheduleItem({
-          traineeId,
+          traineeId: Number(traineeId),
           weekStart,
           dayOfWeek: dayInfo.dayOfWeek,
-          workoutId: exerciseData.workoutId || exerciseData.id || exerciseData.exerciseId,
-          sets: exerciseData.sets,
-          reps: exerciseData.reps,
+          workoutId: workoutId, // ✅ Now always a valid number
+          sets: Number(exerciseData.sets) || 0,
+          reps: Number(exerciseData.reps) || 0,
           notes: exerciseData.notes || "",
         });
 
@@ -259,7 +279,7 @@ export default function CoachAthletePlanScreen({
 
           dayItems.push({
             planItemId: `temp-${Date.now()}`,
-            id: exerciseData.workoutId || exerciseData.id,
+            id: workoutId,
             name: exerciseData.name,
             sets: exerciseData.sets,
             reps: exerciseData.reps,
@@ -280,7 +300,7 @@ export default function CoachAthletePlanScreen({
         Alert.alert("موفقیت", "تمرین با موفقیت اضافه شد");
       } catch (error) {
         console.error("Error adding schedule item:", error);
-        Alert.alert("خطا", "مشکلی در افزودن تمرین رخ داد");
+        Alert.alert("خطا", error?.message || "مشکلی در افزودن تمرین رخ داد");
       } finally {
         setLoading(false);
       }
@@ -467,7 +487,7 @@ export default function CoachAthletePlanScreen({
                                 <MaterialIcons
                                   name="delete-outline"
                                   size={ms(18)}
-                                  color={COLORS.error}
+                                  color={COLORS.danger}
                                 />
                               )}
                             </Pressable>

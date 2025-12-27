@@ -822,9 +822,7 @@ export const addScheduleItem = async (req, res) => {
   if (!ensureCoach(req, res)) return;
 
   const coachId = req.user.id;
-  console.log(coachId);
   const { traineeId, weekStart, dayOfWeek, workoutId, sets, reps, notes } = req.body;
-  console.log(req.body);
 
   if (
     !traineeId ||
