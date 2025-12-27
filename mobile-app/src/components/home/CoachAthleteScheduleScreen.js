@@ -9,8 +9,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { COLORS } from "../../theme/colors";
 import { useFocusEffect } from "@react-navigation/native";
 
-import CoachAthletePlanScreen from "CoachAthletePlanScreen";
-import CoachWorkoutsTab from "CoachWorkoutsTab";
+import CoachAthletePlanScreen from "./CoachAthletePlanScreen";
+import CoachWorkoutsTab from "./CoachWorkoutsTab";
 
 /**
  * ✅ Flow کامل:

@@ -143,19 +143,19 @@ export default function CoachAthletePlanScreen({
 
           if (dayInfo) {
             schedule[dayInfo.key].push({
-              planItemId: item.id || item._id,
-              id: item.workout_id || item.workoutId,
-              name: item.workout_title || item.title || item.name || "نام حرکت",
-              sets: item.sets || 0,
-              reps: item.reps || 0,
+              planItemId: item.item_id ?? item.planItemId ?? item.id ?? item._id,
+              id: item.workout_id ?? item.workoutId ?? item.id,
+              name: item.workout_title ??  item.title ?? item.name ?? "نام حرکت",
+              sets: item.sets_count ?? item.sets ?? 0,
+              reps: item.reps_count ?? item.reps ?? 0,
               notes: item.notes || "",
-              media: item.video_url
-                ? { uri: item.video_url, type: "video" }
-                : null,
+              media: (item.workout_video_url ?? item.video_url)
+                     ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
+                      : null,
               exercise: {
-                media: item.video_url
-                  ? { uri: item.video_url, type: "video" }
-                  : null,
+                media: (item.workout_video_url ?? item.video_url)
+                       ? { uri: item.workout_video_url ?? item.video_url, type: "video" }
+                       : null,
               },
             });
           }
