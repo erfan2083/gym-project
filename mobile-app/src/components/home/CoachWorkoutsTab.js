@@ -1,5 +1,5 @@
 // src/components/home/CoachWorkoutsTab.js
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Pressable,
   Modal,
   Alert,
+  Image,
   StyleSheet as RNStyleSheet,
 } from "react-native";
 import { ms } from "react-native-size-matters";
@@ -23,6 +24,16 @@ const DEFAULT_EXERCISES = [
   { id: "d3", name: "نام حرکت", media: null },
 ];
 
+// AsyncStorage (اگر موجود نبود کرش نکن)
+const safeGetAsyncStorage = () => {
+  try {
+    // eslint-disable-next-line global-require
+    return require("@react-native-async-storage/async-storage").default;
+  } catch {
+    return null;
+  }
+};
+
 // expo-image-picker (اگر موجود نبود کرش نکن)
 const safeGetImagePicker = () => {
   try {
@@ -33,15 +44,34 @@ const safeGetImagePicker = () => {
   }
 };
 
-export default function CoachWorkoutsTab() {
+// expo-av (برای پخش ویدیو در پیش‌نمایش، اگر موجود نبود کرش نکن)
+const safeGetExpoAV = () => {
+  try {
+    // eslint-disable-next-line global-require
+    return require("expo-av");
+  } catch {
+    return null;
+  }
+};
+
+// جلوگیری از "پرش" لیست هنگام رفت‌وبرگشت بین صفحات (picker/plan)
+// (کَش ساده در RAM تا قبل از AsyncStorage رندر خالی نزنیم)
+let _MY_EX_CACHE = null;
+
+const STORAGE_KEY = "coach_my_exercises_v1";
+
+export default function CoachWorkoutsTab({ onAddToPlan, onPickDone }) {
   const [activeTab, setActiveTab] = useState("default"); // default | my
   const [query, setQuery] = useState("");
 
-  // تمرینات من (اول خالی)
-  const [myExercises, setMyExercises] = useState([]);
+  // تمرینات من
+  const [myExercises, setMyExercises] = useState(() =>
+    Array.isArray(_MY_EX_CACHE) ? _MY_EX_CACHE : []
+  );
+  const didLoadRef = useRef(Array.isArray(_MY_EX_CACHE));
 
   // =========================
-  // Modal 1 (Group 287): افزودن به برنامه (sets/reps)
+  // Modal 1 (Group 287): افزودن به برنامه (sets/reps)  (برای مرحله بعدی: افزودن روی کارت‌ها)
   // =========================
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addDraft, setAddDraft] = useState({
@@ -53,12 +83,74 @@ export default function CoachWorkoutsTab() {
   });
 
   // =========================
-  // Modal 2 (Group 290): ساخت/انتخاب تمرین + آپلود مدیا
+  // Modal 2 (Group 290): ساخت/انتخاب تمرین + آپلود مدیا (برای دکمه افزودن بالا)
   // =========================
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createMedia, setCreateMedia] = useState(null); // { uri, type, fileName }
+
+  // =========================
+  // Modal 3: Preview media (image/video) + zoom/play
+  // =========================
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState(null);
+
+  const expoAV = useMemo(() => safeGetExpoAV(), []);
+  const Video = expoAV?.Video;
+
+  // -------------------------
+  // Load from AsyncStorage
+  // -------------------------
+  useEffect(() => {
+    let mounted = true;
+    const AsyncStorage = safeGetAsyncStorage();
+    if (!AsyncStorage) return;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!mounted) return;
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          _MY_EX_CACHE = parsed;
+          setMyExercises(parsed);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        if (mounted) didLoadRef.current = true;
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // -------------------------
+  // Save to AsyncStorage
+  // -------------------------
+  useEffect(() => {
+    if (!didLoadRef.current) return;
+
+    _MY_EX_CACHE = Array.isArray(myExercises) ? myExercises : [];
+
+    const AsyncStorage = safeGetAsyncStorage();
+    if (!AsyncStorage) return;
+
+    // همزمان cache را هم بروز می‌کنیم تا رفت‌وبرگشت بین صفحات باعث خالی شدن لحظه‌ای نشود
+    const payload = JSON.stringify(_MY_EX_CACHE);
+
+    (async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, payload);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, [myExercises]);
 
   const listToShow = useMemo(() => {
     const source = activeTab === "my" ? myExercises : DEFAULT_EXERCISES;
@@ -75,38 +167,39 @@ export default function CoachWorkoutsTab() {
 
   const normalizeDigits = (t) => String(t || "").replace(/[^\d]/g, "");
 
-  // ✅ مودال‌ها فقط از دکمه افزودن بالا اجرا می‌شن
-  const openHeaderAddFlow = () => {
-    const draft = {
-      id: `new-${Date.now()}`,
-      name: "",
-      media: null,
-      sets: "",
-      reps: "",
-    };
-    setAddDraft(draft);
-    setAddModalVisible(true);
+  const openPreview = (media) => {
+    if (!media?.uri) return;
+    setPreviewMedia(media);
+    setPreviewVisible(true);
+  };
+  const closePreview = () => {
+    setPreviewVisible(false);
+    setPreviewMedia(null);
   };
 
-  // ❗️افزودن روی کارت‌ها مربوط به مرحله بعدی است (اضافه به کاربر)
-  // (فعلاً فقط پیام می‌دهیم تا مودال‌های این مرحله اشتباهی باز نشوند)
-  const handleCardAddLater = () => {
-    Alert.alert(
-      "افزودن به کاربر",
-      "این دکمه مربوط به مرحله بعدی است (اضافه کردن تمرین به کاربر)."
-    );
+  // ✅ دکمه افزودن بالا: فقط Modal 2 باز شود + ذخیره در لیست
+  const openHeaderAddFlow = () => {
+    setCreateName("");
+    setCreateDesc("");
+    setCreateMedia(null);
+    setCreateModalVisible(true);
+  };
+
+  // ✅ افزودن روی کارت‌ها: Modal 1 (برای اضافه کردن به پلن ورزشکار)
+  const openAddModalFromExercise = (exercise) => {
+    setAddDraft({
+      id: exercise?.id ?? String(Date.now()),
+      name: exercise?.name ?? "نام حرکت",
+      media: exercise?.media ?? null,
+      sets: "",
+      reps: "",
+    });
+    setAddModalVisible(true);
   };
 
   const closeAddModal = () => {
     setAddModalVisible(false);
     setAddDraft({ id: null, name: "", media: null, sets: "", reps: "" });
-  };
-
-  const openCreateModalFromAddModal = () => {
-    setCreateName(addDraft?.name || "");
-    setCreateDesc("");
-    setCreateMedia(addDraft?.media || null);
-    setCreateModalVisible(true);
   };
 
   const closeCreateModal = () => {
@@ -161,8 +254,52 @@ export default function CoachWorkoutsTab() {
     }
   };
 
-  // Modal2 Submit:
-  // - برگشت به Modal1 و ست شدن نام/مدیا
+  const renderMediaThumb = (media) => {
+    if (!media?.uri) return null;
+
+    const isVideo = media?.type === "video";
+
+    if (isVideo && Video) {
+      return (
+        <>
+          <Video
+            source={{ uri: media.uri }}
+            resizeMode="cover"
+            shouldPlay={false}
+            isLooping={false}
+            useNativeControls={false}
+            isMuted
+            style={styles.mediaThumb}
+          />
+          <View style={styles.videoPlayOverlay}>
+            <Ionicons name="play-circle" size={ms(42)} color={COLORS.white} />
+          </View>
+        </>
+      );
+    }
+
+    if (isVideo && !Video) {
+      return (
+        <>
+          <View style={[styles.mediaThumb, styles.videoThumbFallback]}>
+            <Ionicons name="play-circle" size={ms(42)} color={COLORS.white} />
+          </View>
+        </>
+      );
+    }
+
+    return (
+      <Image
+        source={{ uri: media.uri }}
+        style={styles.mediaThumb}
+        resizeMode="cover"
+      />
+    );
+  };
+
+  // ✅ Modal2 Submit:
+  // - ذخیره تمرین در myExercises (کارت‌ها)
+  // - رفتن به تب "تمرینات من"
   const submitCreate = () => {
     const name = String(createName || "").trim();
     if (!name) {
@@ -174,15 +311,23 @@ export default function CoachWorkoutsTab() {
       return;
     }
 
-    setAddDraft((p) => ({
-      ...p,
+    const created = {
+      id: `my-${Date.now()}`,
       name,
       media: createMedia,
-    }));
+      desc: String(createDesc || "").trim(),
+    };
 
+    setMyExercises((prev) => {
+      const next = [created, ...(Array.isArray(prev) ? prev : [])];
+      _MY_EX_CACHE = next;
+      return next;
+    });
+    setActiveTab("my");
     closeCreateModal();
   };
 
+  // (مرحله فعلی) افزودن تمرین به پلن ورزشکار با ست/تکرار
   const submitAddToPlan = () => {
     const sets = Number(normalizeDigits(addDraft.sets));
     const reps = Number(normalizeDigits(addDraft.reps));
@@ -205,8 +350,20 @@ export default function CoachWorkoutsTab() {
       return;
     }
 
-    // اینجا بعداً به برنامه اضافه می‌کنی
+    // خروجی استاندارد برای توسعه بک‌اند
+    const payload = {
+      exerciseId: String(addDraft.id),
+      name,
+      media: addDraft.media,
+      sets,
+      reps,
+    };
+
+    // اگر حالت picker باشد، به HomeScreen برگردانده می‌شود
+    onAddToPlan?.(payload);
+
     closeAddModal();
+    onPickDone?.();
   };
 
   return (
@@ -290,9 +447,7 @@ export default function CoachWorkoutsTab() {
         </Pressable>
       </View>
 
-      {/* =======================================================
-          ✅ List Scroll ONLY (search/tab ثابت می‌مانند)
-         ======================================================= */}
+      {/* ================= List ================= */}
       <View style={styles.listArea}>
         <ScrollView
           style={styles.listScroll}
@@ -303,7 +458,7 @@ export default function CoachWorkoutsTab() {
             <View key={String(item.id)} style={styles.exerciseCard}>
               <Pressable
                 style={styles.cardAddBtn}
-                onPress={handleCardAddLater} // ✅ دیگر مودال‌ها را باز نمی‌کند
+                onPress={() => openAddModalFromExercise(item)}
                 hitSlop={10}
               >
                 <Ionicons
@@ -316,7 +471,14 @@ export default function CoachWorkoutsTab() {
 
               <Text style={styles.exerciseName}>{item.name}</Text>
 
-              <Pressable style={styles.videoChip} hitSlop={10}>
+              <Pressable
+                style={styles.videoChip}
+                hitSlop={10}
+                onPress={() => {
+                  if (item?.media?.uri) return openPreview(item.media);
+                  Alert.alert("فیلم", "برای این تمرین هنوز مدیا ثبت نشده است.");
+                }}
+              >
                 <Text style={styles.videoChipText}>فیلم</Text>
               </Pressable>
             </View>
@@ -342,16 +504,26 @@ export default function CoachWorkoutsTab() {
               <Feather name="x" size={ms(18)} color={COLORS.text} />
             </Pressable>
 
-            {/* Media Box -> opens Modal 2 */}
+            {/* Media Box */}
             <Pressable
               style={styles.mediaBox287}
-              onPress={openCreateModalFromAddModal}
+              onPress={() => {
+                if (addDraft?.media?.uri) return openPreview(addDraft.media);
+                Alert.alert("مدیا", "برای این تمرین مدیا ثبت نشده است.");
+              }}
             >
-              <Text style={styles.mediaBoxText287}>
-                {addDraft?.media?.fileName
-                  ? addDraft.media.fileName
-                  : "تصویر یا فیلم آموزشی"}
-              </Text>
+              {addDraft?.media?.uri ? (
+                <>
+                  {renderMediaThumb(addDraft.media)}
+                  <View style={styles.mediaBadgeRow287}>
+                    <Text style={styles.mediaBadgeText287}>
+                      {addDraft?.media?.type === "video" ? "ویدیو" : "تصویر"}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.mediaBoxText287}>تصویر یا فیلم آموزشی</Text>
+              )}
             </Pressable>
 
             <Text style={styles.nameText287}>
@@ -426,6 +598,8 @@ export default function CoachWorkoutsTab() {
               <Pressable
                 style={styles.uploadBox290}
                 onPress={() => {
+                  if (!!createMedia?.uri) return openPreview(createMedia);
+
                   Alert.alert("انتخاب فایل", "چه چیزی می‌خواهید آپلود کنید؟", [
                     { text: "تصویر", onPress: () => pickMedia("image") },
                     { text: "ویدیو", onPress: () => pickMedia("video") },
@@ -433,10 +607,32 @@ export default function CoachWorkoutsTab() {
                   ]);
                 }}
               >
-                <Text style={styles.uploadText290}>فیلم آموزشی</Text>
-                <View style={styles.plusCircle290}>
-                  <Ionicons name="add" size={ms(18)} color={COLORS.primary} />
-                </View>
+                {!!createMedia?.uri ? (
+                  <>
+                    {renderMediaThumb(createMedia)}
+                    <View style={styles.mediaBadgeRow290}>
+                      <Text style={styles.mediaBadgeText290}>
+                        {createMedia?.type === "video" ? "ویدیو" : "تصویر"}
+                      </Text>
+                      <Ionicons
+                        name="expand-outline"
+                        size={ms(16)}
+                        color={COLORS.white}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.uploadText290}>فیلم آموزشی</Text>
+                    <View style={styles.plusCircle290}>
+                      <Ionicons
+                        name="add"
+                        size={ms(18)}
+                        color={COLORS.primary}
+                      />
+                    </View>
+                  </>
+                )}
               </Pressable>
 
               {!!createMedia?.fileName && (
@@ -460,6 +656,47 @@ export default function CoachWorkoutsTab() {
             <Pressable style={styles.primaryBtn} onPress={submitCreate}>
               <Text style={styles.primaryBtnText}>افزودن</Text>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= Modal 3: Preview ================= */}
+      <Modal visible={previewVisible} transparent animationType="fade">
+        <View style={styles.previewBackdrop}>
+          <Pressable style={RNStyleSheet.absoluteFill} onPress={closePreview} />
+          <View style={styles.previewCard}>
+            <Pressable style={styles.previewClose} onPress={closePreview}>
+              <Feather name="x" size={ms(18)} color={COLORS.text} />
+            </Pressable>
+
+            <View style={styles.previewBody}>
+              {previewMedia?.type === "image" ? (
+                <Image
+                  source={{ uri: previewMedia.uri }}
+                  style={styles.previewMedia}
+                  resizeMode="contain"
+                />
+              ) : Video ? (
+                <Video
+                  source={{ uri: previewMedia?.uri }}
+                  useNativeControls
+                  resizeMode="contain"
+                  shouldPlay
+                  style={styles.previewMedia}
+                />
+              ) : (
+                <View style={styles.previewFallback}>
+                  <Ionicons
+                    name="play-circle"
+                    size={ms(52)}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.previewFallbackText}>
+                    برای پخش ویدیو، پکیج expo-av باید نصب باشد.
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -663,12 +900,27 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.inputBg2,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   mediaBoxText287: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(12),
     color: COLORS.text,
     opacity: 0.85,
+  },
+  mediaBadgeRow287: {
+    position: "absolute",
+    right: ms(10),
+    top: ms(10),
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: ms(10),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(4),
+  },
+  mediaBadgeText287: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(10),
+    color: COLORS.white,
   },
   nameText287: {
     marginTop: ms(40),
@@ -759,6 +1011,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: ms(8),
+    overflow: "hidden",
   },
   uploadText290: {
     fontFamily: "Vazirmatn_700Bold",
@@ -779,5 +1032,95 @@ const styles = StyleSheet.create({
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(11),
     color: COLORS.text2,
+  },
+
+  mediaThumb: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
+    opacity: 0.9,
+  },
+
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+
+  videoThumbFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+
+  mediaBadgeRow290: {
+    position: "absolute",
+    right: ms(10),
+    top: ms(10),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: ms(6),
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: ms(10),
+    paddingHorizontal: ms(10),
+    paddingVertical: ms(4),
+  },
+  mediaBadgeText290: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(10),
+    color: COLORS.white,
+  },
+
+  /* Preview modal */
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.70)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewCard: {
+    width: "90%",
+    height: "70%",
+    borderRadius: ms(16),
+    backgroundColor: COLORS.inputBg,
+    overflow: "hidden",
+  },
+  previewClose: {
+    position: "absolute",
+    left: ms(12),
+    top: ms(12),
+    width: ms(34),
+    height: ms(34),
+    borderRadius: ms(17),
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.08)",
+    zIndex: 10,
+  },
+  previewBody: {
+    flex: 1,
+    paddingTop: ms(44),
+    paddingHorizontal: ms(12),
+    paddingBottom: ms(12),
+  },
+  previewMedia: {
+    width: "100%",
+    height: "100%",
+    borderRadius: ms(12),
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  previewFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: ms(10),
+  },
+  previewFallbackText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(12),
+    color: COLORS.text,
+    textAlign: "center",
+    opacity: 0.8,
   },
 });
