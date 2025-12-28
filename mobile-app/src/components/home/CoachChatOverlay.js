@@ -16,6 +16,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { COLORS } from "../../theme/colors";
 
+// ✅ این دو مسیر را اگر لازم بود مطابق پروژه‌ات اصلاح کن:
+import api from "../../../api/client";
+import { getSocket, isSocketConnected } from "../../../api/socket";
+
 // AsyncStorage (اگر موجود نبود کرش نکن)
 const safeGetAsyncStorage = () => {
   try {
@@ -26,21 +30,19 @@ const safeGetAsyncStorage = () => {
   }
 };
 
-const storageKeyForThread = (threadId) => `coach_chat_thread_${threadId}`;
+const storageKeyForThread = (oderId) => `coach_chat_thread_${oderId}`;
 
-const getThreadId = (athlete) => {
-  // برای اینکه هم coach هم client همیشه به یک thread برسند
-  const id =
-    athlete?.id ?? athlete?._id ?? athlete?.userId ?? athlete?.user_id ?? null;
-  if (id) return String(id);
-
-  const uname = athlete?.username ? String(athlete.username).trim() : "";
-  if (uname) return `u:${uname}`;
-
-  const phone = athlete?.phone ? String(athlete.phone).trim() : "";
-  if (phone) return `p:${phone}`;
-
-  return null;
+// ✅ FIX: Always return a number for user ID
+const getOtherUserId = (athlete) => {
+  const rawId = athlete?.id ?? athlete?._id ?? athlete?.oderId ?? athlete?.user_id ?? athlete?.trainerId ?? athlete?.trainer_id ?? null;
+  
+  if (rawId === null || rawId === undefined) {
+    return null;
+  }
+  
+  // ✅ Convert to number
+  const numId = Number(rawId);
+  return isNaN(numId) ? null : numId;
 };
 
 const getAthleteName = (athlete) => {
@@ -48,6 +50,8 @@ const getAthleteName = (athlete) => {
     athlete?.name ||
     athlete?.fullName ||
     athlete?.full_name ||
+    athlete?.trainerName ||
+    athlete?.trainer_name ||
     athlete?.username ||
     "";
   return String(full).trim() || "نام کاربر";
@@ -77,15 +81,10 @@ export default function CoachChatOverlay({
   athlete,
   onClose,
   coachName = "نام مربی",
-
-  // ✅ فقط کنترلِ اینکه چت روی BottomTab/کیبورد به‌هم نریزد
   bottomOffset = ms(120),
-
-  // ✅ برای حالت client: meSender="athlete"
-  // برای حالت coach: meSender="coach" (پیش‌فرض)
   meSender = "coach",
 }) {
-  const threadId = useMemo(() => getThreadId(athlete), [athlete]);
+  const otherUserId = useMemo(() => getOtherUserId(athlete), [athlete]);
   const athleteName = useMemo(() => getAthleteName(athlete), [athlete]);
 
   const AsyncStorage = safeGetAsyncStorage();
@@ -95,56 +94,133 @@ export default function CoachChatOverlay({
   const [messages, setMessages] = useState([]);
 
   const scrollRef = useRef(null);
+  const socketRef = useRef(null);
+  const isMountedRef = useRef(true);
+  
+  // ✅ FIX: Track sent message IDs to prevent duplicates
+  const sentMessageIdsRef = useRef(new Set());
 
-  const isUser = meSender === "athlete"; // ✅ نقش UI فقط با همین
+  const isUser = meSender === "athlete";
 
-  // Load thread on open
+  // ---- helpers: map server message -> UI message ----
+  const mapServerMessage = (m) => {
+    if (!m) return null;
+    
+    const sid = Number(m?.sender_id);
+    const other = Number(otherUserId);
+
+    // ✅ تشخیص صحیح فرستنده
+    const isFromOther = sid === other;
+    
+    let sender;
+    if (meSender === "coach") {
+      sender = isFromOther ? "athlete" : "coach";
+    } else {
+      sender = isFromOther ? "coach" : "athlete";
+    }
+
+    return {
+      id: String(m?.id || `msg-${Date.now()}-${Math.random()}`),
+      serverId: m?.id,
+      sender_id: m?.sender_id,
+      receiver_id: m?.receiver_id,
+      sender: sender,
+      text: m?.content || "",
+      ts: m?.sent_at ? new Date(m.sent_at).getTime() : Date.now(),
+      pending: false,
+      failed: false,
+    };
+  };
+
+  const canUseStorage = Boolean(AsyncStorage?.default || AsyncStorage);
+
+  // 1) Load cached messages on open, then fetch history from server
   useEffect(() => {
-    let mounted = true;
+    isMountedRef.current = true;
+    // ✅ Clear sent message IDs when chat opens
+    sentMessageIdsRef.current.clear();
 
     const load = async () => {
       if (!visible) return;
-      if (!threadId) {
+
+      // Reset if no otherUserId
+      if (!otherUserId) {
+        console.log("❌ No otherUserId available for chat");
         setMessages([]);
         return;
       }
 
-      if (!AsyncStorage?.default && !AsyncStorage) {
-        return;
+      console.log("📥 Loading chat with user ID:", otherUserId, "Type:", typeof otherUserId);
+
+      // (A) Load local cache first (fast)
+      if (canUseStorage) {
+        try {
+          const storage = AsyncStorage.default || AsyncStorage;
+          const raw = await storage.getItem(storageKeyForThread(otherUserId));
+          if (!isMountedRef.current) return;
+          const parsed = raw ? JSON.parse(raw) : [];
+          setMessages(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          if (!isMountedRef.current) return;
+          setMessages([]);
+        }
       }
 
+      // (B) Fetch server history
       try {
         setLoading(true);
-        const storage = AsyncStorage.default || AsyncStorage;
-        const raw = await storage.getItem(storageKeyForThread(threadId));
-        if (!mounted) return;
-        const parsed = raw ? JSON.parse(raw) : [];
-        setMessages(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        if (!mounted) return;
-        setMessages([]);
+        console.log(`📥 Fetching chat history with user ${otherUserId}...`);
+        
+        const { data } = await api.get(
+          `/api/chat/history/${otherUserId}?limit=80`
+        );
+
+        if (!isMountedRef.current) return;
+
+        const arr = Array.isArray(data) ? data : [];
+        console.log(`📥 Received ${arr.length} messages`);
+        
+        const mapped = arr.map(mapServerMessage).filter(Boolean);
+        
+        // ✅ حذف duplicate ها
+        const uniqueMessages = [];
+        const seenIds = new Set();
+        for (const msg of mapped) {
+          const msgId = String(msg.serverId || msg.id);
+          if (!seenIds.has(msgId)) {
+            seenIds.add(msgId);
+            uniqueMessages.push(msg);
+          }
+        }
+
+        setMessages(uniqueMessages);
+      } catch (e) {
+        console.error("Error loading chat history:", e);
+        // اگر history شکست خورد، همان cache لوکال نمایش داده می‌شود
       } finally {
-        if (mounted) setLoading(false);
+        if (isMountedRef.current) setLoading(false);
       }
     };
 
     load();
+    
     return () => {
-      mounted = false;
+      isMountedRef.current = false;
     };
-  }, [visible, threadId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, otherUserId, meSender]);
 
-  // Save thread on change (when visible)
+  // 2) Save to local storage whenever messages change (while visible)
   useEffect(() => {
     const save = async () => {
       if (!visible) return;
-      if (!threadId) return;
-      if (!AsyncStorage?.default && !AsyncStorage) return;
+      if (!otherUserId) return;
+      if (!canUseStorage) return;
 
       try {
         const storage = AsyncStorage.default || AsyncStorage;
         await storage.setItem(
-          storageKeyForThread(threadId),
+          storageKeyForThread(otherUserId),
           JSON.stringify(messages || [])
         );
       } catch {
@@ -152,29 +228,174 @@ export default function CoachChatOverlay({
       }
     };
     save();
-  }, [messages, visible, threadId]);
+  }, [messages, visible, otherUserId, canUseStorage, AsyncStorage]);
 
+  // 3) Auto-scroll
   useEffect(() => {
     if (!visible) return;
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollToEnd?.({ animated: true });
-    });
-  }, [visible, messages?.length]);
+    if (messages.length > 0 && scrollRef.current) {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd?.({ animated: true });
+      }, 100);
+    }
+  }, [visible, messages.length]);
 
-  const send = () => {
+  // 4) Socket listener for new messages
+  useEffect(() => {
+    let cleanup = null;
+
+    if (!visible) return;
+    if (!otherUserId) return;
+
+    (async () => {
+      try {
+        const socket = await getSocket();
+        socketRef.current = socket;
+
+        const onNew = (m) => {
+          if (!isMountedRef.current) return;
+          
+          const sid = Number(m?.sender_id);
+          const rid = Number(m?.receiver_id);
+          const other = Number(otherUserId);
+          const msgId = m?.id;
+
+          // فقط پیام‌هایی که بین من و otherUserId هستند
+          if (sid !== other && rid !== other) return;
+
+          // ✅ FIX: اگر پیام از طرف ما فرستاده شده، آن را نادیده بگیر
+          // چون قبلاً در callback ack اضافه شده است
+          if (sid !== other) {
+            console.log("📨 Ignoring own message from chat:new (already handled by ack):", msgId);
+            return;
+          }
+
+          // ✅ FIX: بررسی کن که آیا این پیام قبلاً توسط ما ارسال شده
+          if (msgId && sentMessageIdsRef.current.has(msgId)) {
+            console.log("📨 Ignoring already processed message:", msgId);
+            return;
+          }
+
+          console.log("📨 New message received from other user:", m);
+
+          const msg = mapServerMessage(m);
+          if (!msg) return;
+
+          setMessages((prev) => {
+            const list = prev || [];
+            // ✅ جلوگیری از duplicate با چک کردن serverId
+            const checkId = String(msg.serverId || msg.id);
+            if (list.some((x) => String(x.serverId || x.id) === checkId)) {
+              console.log("📨 Duplicate message detected, skipping:", checkId);
+              return list;
+            }
+            return [...list, msg];
+          });
+        };
+
+        socket.on("chat:new", onNew);
+        console.log("✅ Socket listener attached for chat");
+
+        cleanup = () => {
+          socket?.off("chat:new", onNew);
+        };
+      } catch (e) {
+        console.error("Socket setup error:", e);
+      }
+    })();
+
+    return () => {
+      cleanup?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, otherUserId, meSender]);
+
+  // 5) Send message via socket (optimistic + ack)
+  const send = async () => {
     const text = String(draft || "").trim();
     if (!text) return;
+    if (!otherUserId) {
+      console.error("❌ Cannot send: No otherUserId");
+      return;
+    }
 
-    const now = Date.now();
-    const msg = {
-      id: `m-${now}`,
-      sender: meSender,
-      text,
-      ts: now,
-    };
+    const tempId = `temp-${Date.now()}`;
 
-    setMessages((prev) => [...(prev || []), msg]);
+    // optimistic
+    setMessages((prev) => [
+      ...(prev || []),
+      {
+        id: tempId,
+        sender: meSender,
+        text,
+        ts: Date.now(),
+        pending: true,
+        failed: false,
+      },
+    ]);
     setDraft("");
+
+    try {
+      let socket = socketRef.current;
+      
+      if (!socket || !socket.connected) {
+        console.log("🔌 Socket not connected, getting new connection...");
+        socket = await getSocket();
+        socketRef.current = socket;
+      }
+
+      console.log(`📤 Sending message to ${otherUserId} (type: ${typeof otherUserId}): "${text}"`);
+
+      socket.emit(
+        "chat:send",
+        { 
+          receiverId: Number(otherUserId), // ✅ Always send as number
+          content: text 
+        },
+        (ack) => {
+          if (!isMountedRef.current) return;
+          
+          if (!ack?.ok || !ack?.message) {
+            console.error("❌ Send failed:", ack?.error);
+            setMessages((prev) =>
+              (prev || []).map((x) =>
+                x.id === tempId ? { ...x, pending: false, failed: true } : x
+              )
+            );
+            return;
+          }
+
+          console.log("✅ Message sent successfully, server id:", ack.message?.id);
+          
+          // ✅ FIX: Track this message ID to prevent duplicates from chat:new
+          if (ack.message?.id) {
+            sentMessageIdsRef.current.add(ack.message.id);
+          }
+          
+          const confirmed = mapServerMessage(ack.message);
+
+          setMessages((prev) =>
+            (prev || []).map((x) => (x.id === tempId ? { ...confirmed, pending: false } : x))
+          );
+        }
+      );
+    } catch (e) {
+      console.error("❌ Send error:", e);
+      if (!isMountedRef.current) return;
+      
+      setMessages((prev) =>
+        (prev || []).map((x) =>
+          x.id === tempId ? { ...x, pending: false, failed: true } : x
+        )
+      );
+    }
+  };
+
+  // ✅ Retry failed message
+  const retryMessage = (failedMsg) => {
+    if (!failedMsg?.text) return;
+    setMessages((prev) => prev.filter((x) => x.id !== failedMsg.id));
+    setDraft(failedMsg.text);
   };
 
   const renderDatePill = () => {
@@ -188,15 +409,35 @@ export default function CoachChatOverlay({
     );
   };
 
-  const renderBubble = (m) => {
+  const renderBubble = (m, index) => {
     const isMe = m?.sender === meSender;
+    const isPending = m?.pending;
+    const isFailed = m?.failed;
+
+    // ✅ FIX: Better unique key generation to prevent duplicates
+    // Use a combination of serverId, id, and index to ensure uniqueness
+    let uniqueKey;
+    if (m?.serverId) {
+      uniqueKey = `srv-${m.serverId}`;
+    } else if (m?.id && !m.id.startsWith('temp-')) {
+      uniqueKey = `id-${m.id}`;
+    } else if (m?.id) {
+      uniqueKey = `tmp-${m.id}`;
+    } else {
+      uniqueKey = `idx-${index}-${m?.ts || Date.now()}`;
+    }
 
     return (
-      <View
-        key={String(m?.id)}
+      <Pressable
+        key={uniqueKey}
+        onLongPress={() => {
+          if (isFailed) retryMessage(m);
+        }}
         style={[
           styles.bubble,
           isMe ? styles.bubbleCoach : styles.bubbleAthlete,
+          isPending && styles.bubblePending,
+          isFailed && styles.bubbleFailed,
         ]}
       >
         <Text
@@ -209,19 +450,82 @@ export default function CoachChatOverlay({
           {m?.text || (isMe ? coachName : athleteName)}
         </Text>
 
-        <Text
-          style={[
-            styles.bubbleTime,
-            isMe ? styles.bubbleTimeCoach : styles.bubbleTimeAthlete,
-          ]}
-        >
-          {formatTimeFa(m?.ts || Date.now())}
-        </Text>
-      </View>
+        <View style={styles.bubbleFooter}>
+          <Text
+            style={[
+              styles.bubbleTime,
+              isMe ? styles.bubbleTimeCoach : styles.bubbleTimeAthlete,
+            ]}
+          >
+            {formatTimeFa(m?.ts || Date.now())}
+          </Text>
+
+          {isMe && (
+            <View style={styles.statusIcon}>
+              {isPending ? (
+                <Ionicons name="time-outline" size={ms(10)} color={COLORS.text2} />
+              ) : isFailed ? (
+                <Ionicons name="alert-circle" size={ms(10)} color="#ff6b6b" />
+              ) : (
+                <Ionicons name="checkmark-done" size={ms(10)} color={COLORS.primary} />
+              )}
+            </View>
+          )}
+        </View>
+
+        {isFailed && (
+          <Text style={styles.failedText}>خطا - لمس کنید</Text>
+        )}
+      </Pressable>
     );
   };
 
   if (!visible) return null;
+
+  // ✅ Show warning if no trainer/athlete to chat with
+  if (!otherUserId) {
+    return (
+      <View
+        style={[
+          styles.overlayWrap,
+          isUser ? styles.overlayWrapUser : styles.overlayWrapCoach,
+          { paddingBottom: bottomOffset },
+        ]}
+      >
+        <Pressable
+          style={[
+            styles.backdrop,
+            isUser ? styles.backdropUser : styles.backdropCoach,
+          ]}
+          onPress={onClose}
+        />
+        <View style={[styles.cardWrap, isUser ? styles.cardWrapUser : styles.cardWrapCoach]}>
+          <View style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}>
+            <View style={styles.headerRow}>
+              <Pressable onPress={onClose} hitSlop={10} style={styles.backBtn}>
+                <Ionicons name="arrow-back" size={ms(22)} color={COLORS.primary} />
+              </Pressable>
+              <View style={styles.headerLine} />
+              <Text style={styles.headerName}>چت</Text>
+              <View style={styles.avatarCircle}>
+                <FontAwesome5 name="user-alt" size={ms(16)} color={COLORS.primary} />
+              </View>
+            </View>
+            
+            <View style={styles.noTrainerWrap}>
+              <Ionicons name="chatbubble-ellipses-outline" size={ms(48)} color={COLORS.text2} />
+              <Text style={styles.noTrainerText}>
+                {isUser 
+                  ? "هنوز اشتراک فعالی با مربی ندارید"
+                  : "شاگردی انتخاب نشده است"
+                }
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -249,17 +553,11 @@ export default function CoachChatOverlay({
           isUser ? styles.cardWrapUser : styles.cardWrapCoach,
         ]}
       >
-        <View
-          style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}
-        >
+        <View style={[styles.card, isUser ? styles.cardUser : styles.cardCoach]}>
           {/* Header */}
           <View style={styles.headerRow}>
             <Pressable onPress={onClose} hitSlop={10} style={styles.backBtn}>
-              <Ionicons
-                name="arrow-back"
-                size={ms(22)}
-                color={COLORS.primary}
-              />
+              <Ionicons name="arrow-back" size={ms(22)} color={COLORS.primary} />
             </Pressable>
 
             <View style={styles.headerLine} />
@@ -269,11 +567,7 @@ export default function CoachChatOverlay({
             </Text>
 
             <View style={styles.avatarCircle}>
-              <FontAwesome5
-                name="user-alt"
-                size={ms(16)}
-                color={COLORS.primary}
-              />
+              <FontAwesome5 name="user-alt" size={ms(16)} color={COLORS.primary} />
             </View>
           </View>
 
@@ -288,8 +582,10 @@ export default function CoachChatOverlay({
 
             {loading ? (
               <Text style={styles.loadingText}>در حال بارگذاری...</Text>
+            ) : messages.length === 0 ? (
+              <Text style={styles.emptyText}>هنوز پیامی وجود ندارد</Text>
             ) : (
-              (messages || []).map(renderBubble)
+              (messages || []).map((m, index) => renderBubble(m, index))
             )}
 
             <View style={{ height: ms(10) }} />
@@ -357,7 +653,7 @@ const styles = StyleSheet.create({
     paddingBottom: ms(12),
   },
 
-  // ========= Coach Variant (همان قبلی شما) =========
+  // ========= Coach Variant =========
   overlayWrapCoach: {
     justifyContent: "flex-end",
   },
@@ -372,7 +668,7 @@ const styles = StyleSheet.create({
     marginBottom: ms(-20),
   },
 
-  // ========= User Variant (پایدارتر/بدون منفی) =========
+  // ========= User Variant =========
   overlayWrapUser: {
     justifyContent: "flex-end",
   },
@@ -387,7 +683,7 @@ const styles = StyleSheet.create({
     marginBottom: ms(-115),
   },
 
-  // ========= Rest (بدون تغییر) =========
+  // ========= Header =========
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -419,6 +715,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  // ========= No Trainer State =========
+  noTrainerWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: ms(16),
+  },
+  noTrainerText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(14),
+    color: COLORS.text2,
+    textAlign: "center",
+  },
+
+  // ========= Messages =========
   messagesWrap: {
     paddingTop: ms(18),
     paddingBottom: ms(16),
@@ -430,6 +741,13 @@ const styles = StyleSheet.create({
     color: COLORS.text2,
     textAlign: "center",
     marginTop: ms(10),
+  },
+  emptyText: {
+    fontFamily: "Vazirmatn_700Bold",
+    fontSize: ms(12),
+    color: COLORS.text2,
+    textAlign: "center",
+    marginTop: ms(30),
   },
 
   datePill: {
@@ -446,6 +764,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 
+  // ========= Bubbles =========
   bubble: {
     maxWidth: "70%",
     borderRadius: ms(18),
@@ -460,6 +779,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: "rgba(255,255,255,0.55)",
   },
+  bubblePending: {
+    opacity: 0.6,
+  },
+  bubbleFailed: {
+    backgroundColor: "rgba(255,107,107,0.4)",
+    borderWidth: 1,
+    borderColor: "#ff6b6b",
+  },
   bubbleText: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(12),
@@ -467,8 +794,12 @@ const styles = StyleSheet.create({
   bubbleTextCoach: { color: COLORS.text },
   bubbleTextAthlete: { color: COLORS.text },
 
-  bubbleTime: {
+  bubbleFooter: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: ms(6),
+  },
+  bubbleTime: {
     fontFamily: "Vazirmatn_700Bold",
     fontSize: ms(9),
     opacity: 0.85,
@@ -476,6 +807,17 @@ const styles = StyleSheet.create({
   bubbleTimeCoach: { color: COLORS.text, textAlign: "left" },
   bubbleTimeAthlete: { color: COLORS.text, textAlign: "left" },
 
+  statusIcon: {
+    marginLeft: ms(6),
+  },
+  failedText: {
+    fontFamily: "Vazirmatn_400Regular",
+    fontSize: ms(8),
+    color: "#ff6b6b",
+    marginTop: ms(4),
+  },
+
+  // ========= Input =========
   inputRow: {
     flexDirection: "row",
     alignItems: "center",

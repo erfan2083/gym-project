@@ -111,7 +111,8 @@ export default function CoachWorkoutsTab({
       
       // ✅ جدا کردن تمرینات پیش‌فرض از تمرینات مربی
       const allWorkouts = (data || []).map((item) => ({
-        id: item.id || item._id,
+        // ✅ FIX: Ensure ID is always a number from database
+        id: Number(item.id) || Number(item._id) || null,
         name: item.title || item.name || "نام حرکت",
         media: item.video_url
           ? { uri: item.video_url, type: "video", fileName: "video.mp4" }
@@ -134,9 +135,14 @@ export default function CoachWorkoutsTab({
       // ✅ تمرینات مربی رو هم آپدیت کن
       if (myOnly.length > 0) {
         setMyExercises((prev) => {
-          // اول تمریناتی که از سرور اومدن (بدون تکرار)
+          // ✅ FIX: Filter out temporary IDs and keep only real ones from server
           const serverIds = new Set(myOnly.map((w) => w.id));
-          const localOnly = (prev || []).filter((e) => !serverIds.has(e.id));
+          // Remove local temp items that now exist on server
+          const localOnly = (prev || []).filter((e) => {
+            // Keep only items with temp IDs that aren't on server
+            const isTemp = typeof e.id === 'string' && e.id.startsWith('my-');
+            return isTemp && !serverIds.has(e.id);
+          });
           
           const merged = [...myOnly, ...localOnly];
           _MY_EX_CACHE = merged;
@@ -171,8 +177,13 @@ export default function CoachWorkoutsTab({
         if (!raw) return;
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          _MY_EX_CACHE = parsed;
-          setMyExercises(parsed);
+          // ✅ FIX: Filter out temp IDs on load (they should come from server)
+          const validItems = parsed.filter((item) => {
+            const isTemp = typeof item.id === 'string' && item.id.startsWith('my-');
+            return !isTemp; // Only keep items with real IDs
+          });
+          _MY_EX_CACHE = validItems;
+          setMyExercises(validItems);
         }
       } catch (e) {
         // ignore
@@ -193,12 +204,18 @@ export default function CoachWorkoutsTab({
   useEffect(() => {
     if (!didLoadRef.current) return;
 
-    _MY_EX_CACHE = Array.isArray(myExercises) ? myExercises : [];
+    // ✅ FIX: Only save items with real IDs
+    const itemsToSave = (myExercises || []).filter((item) => {
+      const isTemp = typeof item.id === 'string' && item.id.startsWith('my-');
+      return !isTemp;
+    });
+
+    _MY_EX_CACHE = itemsToSave;
 
     const AsyncStorage = safeGetAsyncStorage();
     if (!AsyncStorage) return;
 
-    const payload = JSON.stringify(_MY_EX_CACHE);
+    const payload = JSON.stringify(itemsToSave);
 
     (async () => {
       try {
@@ -242,8 +259,18 @@ export default function CoachWorkoutsTab({
   // افزودن روی کارت‌ها
   const openAddModalFromExercise = (exercise) => {
     console.log("Opening add modal for exercise:", exercise);
+    
+    // ✅ FIX: Validate that exercise has a real ID
+    const exerciseId = exercise?.id;
+    const isValidId = typeof exerciseId === 'number' && exerciseId > 0;
+    
+    if (!isValidId) {
+      Alert.alert("خطا", "این تمرین هنوز در سرور ذخیره نشده. لطفاً صفحه را رفرش کنید.");
+      return;
+    }
+    
     setAddDraft({
-      id: exercise?.id ?? String(Date.now()),
+      id: exerciseId, // ✅ Now always a valid number
       name: exercise?.name ?? "نام حرکت",
       media: exercise?.media ?? null,
       sets: "",
@@ -374,22 +401,34 @@ export default function CoachWorkoutsTab({
         },
       });
 
+      console.log("createMyWorkout response:", response);
+
+      // ✅ FIX: Correctly extract ID from response
+      // Backend returns: { message, workout: { id, title, description, video_url, created_by } }
+      const workoutData = response?.workout || response;
+      const workoutId = Number(workoutData?.id) || null;
+      const videoUrl = workoutData?.video_url || workoutData?.videoUrl || null;
+
+      if (!workoutId) {
+        console.error("No workout ID in response:", response);
+        Alert.alert("خطا", "تمرین ساخته شد ولی ID دریافت نشد. لطفاً صفحه را رفرش کنید.");
+        closeCreateModal();
+        // Refresh the list to get the new workout from server
+        fetchDefaultWorkouts();
+        return;
+      }
+
       const created = {
-        id: response?.id || response?.workoutId || `my-${Date.now()}`,
+        id: workoutId, // ✅ Now a real number ID from database
         name,
-        media: createMedia,
+        media: videoUrl 
+          ? { uri: videoUrl, type: "video", fileName: "video.mp4" }
+          : createMedia,
         description: String(createDesc || "").trim(),
-        videoUrl: response?.videoUrl || response?.video_url || null,
-        isDefault: false, // ✅ این تمرین مال مربیه
+        isDefault: false,
       };
 
-      if (created.videoUrl) {
-        created.media = {
-          uri: created.videoUrl,
-          type: "video",
-          fileName: "video.mp4",
-        };
-      }
+      console.log("Created workout with ID:", created.id);
 
       setMyExercises((prev) => {
         const next = [created, ...(Array.isArray(prev) ? prev : [])];
@@ -415,13 +454,21 @@ export default function CoachWorkoutsTab({
     const sets = Number(normalizeDigits(addDraft.sets));
     const reps = Number(normalizeDigits(addDraft.reps));
     const name = String(addDraft?.name || "").trim();
+    const workoutId = addDraft.id;
 
-    console.log("submitAddToPlan called:", { name, sets, reps, id: addDraft.id });
+    console.log("submitAddToPlan called:", { name, sets, reps, workoutId, type: typeof workoutId });
 
     if (!name) {
       Alert.alert("خطا", "نام حرکت را مشخص کنید");
       return;
     }
+    
+    // ✅ FIX: Validate workout ID is a real number
+    if (typeof workoutId !== 'number' || workoutId <= 0) {
+      Alert.alert("خطا", "شناسه تمرین نامعتبر است. لطفاً صفحه را رفرش کنید.");
+      return;
+    }
+    
     if (!Number.isFinite(sets) || sets <= 0) {
       Alert.alert("خطا", "تعداد ست را وارد کنید");
       return;
@@ -431,11 +478,11 @@ export default function CoachWorkoutsTab({
       return;
     }
 
-    // ✅ خروجی استاندارد
+    // ✅ خروجی استاندارد با workoutId عددی
     const payload = {
-      exerciseId: String(addDraft.id),
-      workoutId: addDraft.id,
-      id: addDraft.id,
+      workoutId: workoutId, // ✅ Now always a valid number
+      id: workoutId,
+      exerciseId: workoutId,
       name,
       media: addDraft.media,
       sets,
@@ -471,6 +518,9 @@ export default function CoachWorkoutsTab({
 
   const handleRefresh = () => {
     if (activeTab === "default") {
+      fetchDefaultWorkouts();
+    } else {
+      // Also refresh "my" tab from server
       fetchDefaultWorkouts();
     }
   };
@@ -607,12 +657,10 @@ export default function CoachWorkoutsTab({
                     ? "هنوز تمرینی اضافه نشده"
                     : "تمرینی یافت نشد"}
                 </Text>
-                {activeTab === "default" && (
-                  <Pressable style={styles.refreshBtn} onPress={handleRefresh}>
-                    <Ionicons name="refresh" size={ms(16)} color={COLORS.primary} />
-                    <Text style={styles.refreshText}>تلاش مجدد</Text>
-                  </Pressable>
-                )}
+                <Pressable style={styles.refreshBtn} onPress={handleRefresh}>
+                  <Ionicons name="refresh" size={ms(16)} color={COLORS.primary} />
+                  <Text style={styles.refreshText}>تلاش مجدد</Text>
+                </Pressable>
               </View>
             )}
 

@@ -71,7 +71,10 @@ export default function LoginScreen({ navigation }) {
       // شماره را نرمال و فقط رقم می‌فرستیم
       const { user } = await login({ phone: phone, password: pass }); // ذخیرهٔ توکن در خود تابع انجام می‌شود :contentReference[oaicite:3]{index=3}
 
+      console.log(user);
+
       setProfile({
+        userId: user?.id || null,
         role: user?.role || null,
         name: user?.full_name || user?.name || "",
         username: user?.username || "",
