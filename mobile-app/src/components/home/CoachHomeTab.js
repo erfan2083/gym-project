@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TextInput, Image } from "react-native";
 import { ms } from "react-native-size-matters";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -16,6 +16,8 @@ export default function CoachHomeTab({ onSelectAthlete }) {
     const n = profile?.name || profile?.username || "";
     return String(n).trim() || "نام مربی";
   }, [profile?.name, profile?.username]);
+
+  const avatarUri = profile?.avatarUri || null;
 
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,15 @@ export default function CoachHomeTab({ onSelectAthlete }) {
       {/* Header */}
       <View style={styles.topHeaderRow}>
         <View style={styles.userIconCircle}>
-          <FontAwesome5 name="user-alt" size={ms(16)} color={COLORS.primary} />
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.userIconCircle} />
+          ) : (
+              <FontAwesome5
+                name="user-alt"
+                size={ms(16)}
+                color={COLORS.primary}
+              />
+          )}
         </View>
         <Text style={styles.userName}>{displayName}</Text>
       </View>
