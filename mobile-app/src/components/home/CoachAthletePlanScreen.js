@@ -28,7 +28,7 @@ import {
 } from "../../../api/trainer";
 
 // ✅ NEW: Import client API
-import { getMyWeekSchedule } from "../../../api/user";
+import { getMyWeekSchedule, getMyTrainer } from "../../../api/user";
 
 // expo-av (اگر موجود نبود کرش نکن)
 const safeGetVideo = () => {
@@ -60,6 +60,8 @@ const getWeekStart = () => {
   return d.toISOString().split("T")[0];
 };
 
+ 
+
 export default function CoachAthletePlanScreen({
   athlete,
   onPressAddForDay,
@@ -71,6 +73,30 @@ export default function CoachAthletePlanScreen({
   // ✅ برای حالت کاربر - شناسه خود کاربر
   currentUserId = null,
 }) {
+
+  const loadClientTrainer = async (currentUserId) => {
+    if (!currentUserId) return;
+    
+    try {
+      console.log("📥 Loading client's trainer...");
+      
+      const data = await getMyTrainer();
+      
+      if (data?.trainerId) {
+        console.log("✅ Client's trainer loaded:", data);
+
+        return data;
+      } else {
+        console.log("❌ No active trainer found for client");
+    
+      }
+    } catch (error) {
+      console.error("Error loading client trainer:", error);
+    
+    }
+  };
+
+
   // ✅ State management
   const [planByDay, setPlanByDay] = useState({});
   const [loading, setLoading] = useState(false);
@@ -99,15 +125,41 @@ export default function CoachAthletePlanScreen({
     );
   }, [athlete, currentUserId]);
 
-  const athleteName = useMemo(() => {
-    const full =
-      athlete?.name ||
-      athlete?.fullName ||
-      athlete?.full_name ||
-      athlete?.username ||
-      "";
-    return String(full).trim() || "نام کاربر";
-  }, [athlete]);
+  const [trainerData, setTrainerData] = useState({ name: "نام مربی", avatar: null });
+
+useEffect(() => {
+  if (currentUserId) {
+    loadClientTrainer(currentUserId).then(data => {
+      if (data) {
+        setTrainerData({
+          name: data.trainerName || "نام مربی",
+          avatar: data.trainerAvatar || null
+        });
+      }
+    });
+  }
+}, [currentUserId]);
+
+const athleteName = useMemo(() => {
+  if (currentUserId) {
+    return trainerData.name;
+  }
+  const full =
+    athlete?.name ||
+    athlete?.fullName ||
+    athlete?.full_name ||
+    athlete?.username ||
+    "";
+  return String(full).trim() || "نام کاربر";
+}, [currentUserId, trainerData.name, athlete]);
+
+const avatarUri = useMemo(() => {
+  if (currentUserId) {
+    return trainerData.avatar;
+  }
+  return athlete?.avatarUri || null;
+}, [currentUserId, trainerData.avatar, athlete]);
+
 
   const subscriptionName = useMemo(() => {
     const sub =
@@ -417,13 +469,14 @@ export default function CoachAthletePlanScreen({
         </Text>
 
         <View style={styles.avatarCircle}>
-          {athlete?.avatarUrl || athlete?.avatar_url ? (
-            <Image
-              source={{ uri: athlete.avatarUrl || athlete.avatar_url }}
-              style={styles.avatarImage}
-            />
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
           ) : (
-            <FontAwesome5 name="user-alt" size={ms(20)} color={COLORS.primary} />
+              <FontAwesome5
+                name="user-alt"
+                size={ms(20)}
+                color={COLORS.primary}
+              />
           )}
         </View>
       </View>
