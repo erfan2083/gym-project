@@ -66,6 +66,7 @@ export default function CoachAthletePlanScreen({
   onAddExercise,
   onBack,
   onOpenChat,
+  onOpenAIChat,
   readOnly = false,
   onNavigateToWorkouts,
   // ✅ برای حالت کاربر - شناسه خود کاربر
@@ -428,16 +429,31 @@ export default function CoachAthletePlanScreen({
         </View>
       </View>
 
-      {/* Line + Center Chat Icon */}
+      {/* Line + Center Chat Icons */}
       <View style={styles.headerLineWrap}>
         <View style={styles.headerLine} />
-        <Pressable
-          onPress={onOpenChat}
-          hitSlop={10}
-          style={styles.centerChatBtn}
-        >
-          <Entypo name="chat" size={40} color={COLORS.primary} />
-        </Pressable>
+
+        {/* دکمه چت با مربی */}
+        {onOpenChat && (
+          <Pressable
+            onPress={onOpenChat}
+            hitSlop={10}
+            style={[styles.centerChatBtn, onOpenAIChat && styles.centerChatBtnLeft]}
+          >
+            <Entypo name="chat" size={ms(36)} color={COLORS.primary} />
+          </Pressable>
+        )}
+
+        {/* دکمه چت با AI */}
+        {onOpenAIChat && (
+          <Pressable
+            onPress={onOpenAIChat}
+            hitSlop={10}
+            style={[styles.centerChatBtn, onOpenChat && styles.centerChatBtnRight]}
+          >
+            <MaterialIcons name="smart-toy" size={ms(36)} color={COLORS.primary} />
+          </Pressable>
+        )}
       </View>
 
       <Text style={styles.subText} numberOfLines={1}>
@@ -667,6 +683,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  centerChatBtnLeft: {
+    transform: [{ translateY: ms(-35) }, { translateX: ms(-90) }],
+  },
+  centerChatBtnRight: {
+    transform: [{ translateY: ms(-35) }, { translateX: ms(-50) }],
   },
 
   subText: {
