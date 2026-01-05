@@ -23,6 +23,7 @@ import SportTrainersScreen from "../../components/home/SportTrainersScreen";
 import CoachHomeTab from "../../components/home/CoachHomeTab";
 import CoachAthletePlanScreen from "../../components/home/CoachAthletePlanScreen";
 import CoachChatOverlay from "../../components/home/CoachChatOverlay";
+import AiCoachChatOverlay from "../../components/home/AiCoachChatOverlay";
 
 // ✅ NEW: Import client API
 import { getMyTrainer } from "../../../api/user";
@@ -44,6 +45,8 @@ export default function HomeScreen() {
   }, [profile]);
 
   const [clientChatVisible, setClientChatVisible] = useState(false);
+  const [aiChatVisible, setAiChatVisible] = useState(false);
+  const [aiPlanContext, setAiPlanContext] = useState(null);
 
   // ✅ اطلاعات مربی کاربر (برای چت) - NOW PROPERLY LOADED
   const [userTrainerInfo, setUserTrainerInfo] = useState(null);
@@ -53,6 +56,16 @@ export default function HomeScreen() {
     const n = profile?.name || profile?.username || "";
     return String(n).trim() || "نام مربی";
   }, [profile?.name, profile?.username]);
+
+  const traineeDisplayName = useMemo(() => {
+    const name =
+      profile?.full_name ||
+      profile?.fullName ||
+      profile?.name ||
+      profile?.username ||
+      "کاربر";
+    return String(name).trim() || "کاربر";
+  }, [profile]);
 
   // ============ Client Home pages ============
   const [homePage, setHomePage] = useState("main"); // "main" | "sports" | "sportTrainers" | "topTrainers" | "trainerPublic"
@@ -217,12 +230,22 @@ export default function HomeScreen() {
     setClientChatVisible(true);
   };
 
+  const openAiChat = () => {
+    console.log("Opening AI coach chat with plan:", aiPlanContext);
+    setAiChatVisible(true);
+  };
+
+  const handlePlanLoadedForAi = useCallback((plan, meta = {}) => {
+    setAiPlanContext({ planByDay: plan, weekStart: meta?.weekStart });
+  }, []);
+
   const effectiveTab = tabHighlight || activeTab;
 
   const switchTab = (t) => {
     // اگر چت باز بود و کاربر روی تب‌ها زد، چت بسته شود
     if (chatVisible) closeCoachChat();
     if (clientChatVisible) setClientChatVisible(false);
+    if (aiChatVisible) setAiChatVisible(false);
     setTabHighlight(null);
     setActiveTab(t);
   };
@@ -400,6 +423,8 @@ export default function HomeScreen() {
               // چون تب است، back را بی‌اثر یا برگردان به home tab
               onBack={() => setActiveTab("home")}
               onOpenChat={openClientChat}
+              onOpenAiChat={openAiChat}
+              onPlanLoaded={handlePlanLoadedForAi}
             />
 
             {/* ✅ چت کاربر با مربی - NOW WITH LOADED TRAINER */}
@@ -410,6 +435,17 @@ export default function HomeScreen() {
               onClose={() => setClientChatVisible(false)}
               bottomOffset={ms(120)}
               meSender="athlete" // ✅ کلیدی‌ترین تغییر برای اینکه UI چت در user به‌هم نریزد
+            />
+
+            {/* ✅ چت با مربی هوشمند (Gemini) */}
+            <AiCoachChatOverlay
+              visible={aiChatVisible}
+              onClose={() => setAiChatVisible(false)}
+              planByDay={aiPlanContext?.planByDay}
+              weekStart={aiPlanContext?.weekStart}
+              trainerName={userTrainerInfo?.name || "مربی"}
+              traineeName={traineeDisplayName}
+              bottomOffset={ms(120)}
             />
           </>
         );
