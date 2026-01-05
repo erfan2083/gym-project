@@ -68,10 +68,12 @@ export default function CoachAthletePlanScreen({
   onAddExercise,
   onBack,
   onOpenChat,
+  onOpenAiChat,
   readOnly = false,
   onNavigateToWorkouts,
   // ✅ برای حالت کاربر - شناسه خود کاربر
   currentUserId = null,
+  onPlanLoaded,
 }) {
 
   const loadClientTrainer = async (currentUserId) => {
@@ -153,12 +155,12 @@ const athleteName = useMemo(() => {
   return String(full).trim() || "نام کاربر";
 }, [currentUserId, trainerData.name, athlete]);
 
-const avatarUri = useMemo(() => {
-  if (currentUserId) {
-    return trainerData.avatar;
-  }
-  return athlete?.avatarUri || null;
-}, [currentUserId, trainerData.avatar, athlete]);
+  const avatarUri = useMemo(() => {
+    if (currentUserId) {
+      return trainerData.avatar;
+    }
+    return athlete?.avatarUri || null;
+  }, [currentUserId, trainerData.avatar, athlete]);
 
 
   const subscriptionName = useMemo(() => {
@@ -171,6 +173,13 @@ const avatarUri = useMemo(() => {
       "";
     return String(sub).trim() || "نام اشتراک";
   }, [athlete]);
+
+  // ✅ Notify parent when plan is loaded (برای استفاده در چت هوش مصنوعی)
+  useEffect(() => {
+    if (!loading && planByDay && onPlanLoaded) {
+      onPlanLoaded(planByDay, { weekStart });
+    }
+  }, [loading, onPlanLoaded, planByDay, weekStart]);
 
   // ✅ ─────────────────────────────────────────────
   // ✅ Fetch weekly schedule from API
@@ -484,13 +493,25 @@ const avatarUri = useMemo(() => {
       {/* Line + Center Chat Icon */}
       <View style={styles.headerLineWrap}>
         <View style={styles.headerLine} />
-        <Pressable
-          onPress={onOpenChat}
-          hitSlop={10}
-          style={styles.centerChatBtn}
-        >
-          <Entypo name="chat" size={40} color={COLORS.primary} />
-        </Pressable>
+        <View style={styles.chatActionsRow}>
+          <Pressable
+            onPress={onOpenChat}
+            hitSlop={10}
+            style={styles.centerChatBtn}
+          >
+            <Entypo name="chat" size={40} color={COLORS.primary} />
+          </Pressable>
+
+          {readOnly && (
+            <Pressable
+              onPress={onOpenAiChat}
+              hitSlop={10}
+              style={[styles.centerChatBtn, styles.aiChatBtn]}
+            >
+              <Ionicons name="sparkles-outline" size={38} color={COLORS.primary} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <Text style={styles.subText} numberOfLines={1}>
@@ -710,6 +731,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     opacity: 0.9,
   },
+  chatActionsRow: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: ms(16),
+  },
   centerChatBtn: {
     position: "absolute",
     transform: [{ translateY: ms(-35) }, { translateX: ms(-70) }],
@@ -720,6 +747,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.06)",
+  },
+
+  aiChatBtn: {
+    transform: [{ translateY: ms(-35) }, { translateX: ms(70) }],
   },
 
   subText: {
