@@ -23,6 +23,7 @@ import SportTrainersScreen from "../../components/home/SportTrainersScreen";
 import CoachHomeTab from "../../components/home/CoachHomeTab";
 import CoachAthletePlanScreen from "../../components/home/CoachAthletePlanScreen";
 import CoachChatOverlay from "../../components/home/CoachChatOverlay";
+import AIChatOverlay from "../../components/home/AIChatOverlay";
 
 // ✅ NEW: Import client API
 import { getMyTrainer } from "../../../api/user";
@@ -44,6 +45,7 @@ export default function HomeScreen() {
   }, [profile]);
 
   const [clientChatVisible, setClientChatVisible] = useState(false);
+  const [aiChatVisible, setAiChatVisible] = useState(false);
 
   // ✅ اطلاعات مربی کاربر (برای چت) - NOW PROPERLY LOADED
   const [userTrainerInfo, setUserTrainerInfo] = useState(null);
@@ -217,12 +219,19 @@ export default function HomeScreen() {
     setClientChatVisible(true);
   };
 
+    // ✅ باز کردن چت با AI
+  const openAIChat = () => {
+    console.log("Opening AI chat");
+    setAiChatVisible(true);
+  };
+  
   const effectiveTab = tabHighlight || activeTab;
 
   const switchTab = (t) => {
     // اگر چت باز بود و کاربر روی تب‌ها زد، چت بسته شود
     if (chatVisible) closeCoachChat();
     if (clientChatVisible) setClientChatVisible(false);
+    if (aiChatVisible) setAiChatVisible(false);
     setTabHighlight(null);
     setActiveTab(t);
   };
@@ -400,6 +409,7 @@ export default function HomeScreen() {
               // چون تب است، back را بی‌اثر یا برگردان به home tab
               onBack={() => setActiveTab("home")}
               onOpenChat={openClientChat}
+              onOpenAIChat={openAIChat}
             />
 
             {/* ✅ چت کاربر با مربی - NOW WITH LOADED TRAINER */}
@@ -411,6 +421,14 @@ export default function HomeScreen() {
               bottomOffset={ms(120)}
               meSender="athlete" // ✅ کلیدی‌ترین تغییر برای اینکه UI چت در user به‌هم نریزد
             />
+
+            {/* ✅ چت با هوش مصنوعی */}
+            <AIChatOverlay
+              visible={aiChatVisible}
+              onClose={() => setAiChatVisible(false)}
+              bottomOffset={ms(120)}
+            />
+
           </>
         );
       }
