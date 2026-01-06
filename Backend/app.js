@@ -3,6 +3,7 @@ import authRouter from "./routes/authRoutes.js";
 import trainerRoutes from "./routes/trainerRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import chatRouter from "./routes/chatRoutes.js";
+import aiChatRouter from "./routes/aiChatRoutes.js";
 
 
 const app = express();
@@ -12,6 +13,7 @@ app.use('/api/auth', authRouter);
 app.use("/api/trainer", trainerRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/chat", chatRouter);
+app.use("/api/ai-chat", aiChatRouter);
 
 
 export default app;
