@@ -29,7 +29,7 @@ export async function getSocket() {
         socket = null;
       }
 
-      socket = io("http://192.168.78.48:3000", {
+      socket = io("http://192.168.1.13:3000", {
         transports: ["websocket"],
         auth: { token },
         autoConnect: true,
